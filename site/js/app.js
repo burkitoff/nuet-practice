@@ -17,7 +17,7 @@ function shell(active) {
   const admin = ctx.me.role === "admin";
   app.innerHTML = `
   <header class="topbar">
-    <a class="brand" href="#/">${esc(CONFIG.APP_NAME)}</a>
+    <a class="brand" href="#/" aria-label="${esc(CONFIG.APP_NAME)} home"><img src="img/logo.svg" alt="${esc(CONFIG.APP_NAME)}" width="125" height="36"></a>
     <nav>
       <a href="#/" class="${active === "home" ? "on" : ""}">Home</a>
       <a href="#/practice" class="${active === "practice" ? "on" : ""}">Practice</a>

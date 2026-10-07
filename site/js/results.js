@@ -72,7 +72,7 @@ export async function showAttempt(root, id, ctx) {
 
     <section class="card">
       <h2>Your path through the ${isMock ? "test" : "set"}</h2>
-      <p class="muted small">Each blue bar is the time a question was open; dots are answer choices (<span class="c-good">●</span> right, <span class="c-bad">●</span> wrong). ${isMock ? "The dashed line is an even pace; the red line is the time limit." : ""}</p>
+      <p class="muted small">Each dark bar is the time a question was open; dots are answer choices (<span class="c-good">●</span> right, <span class="c-bad">●</span> wrong). ${isMock ? "The dashed line is an even pace; the red line is the time limit." : "Breaks where you were away are squeezed and marked “away”; the axis counts active time only."}</p>
       <div class="chart-wrap">${timelineChart(timeline(items), { total: a.total, limitMs: a.time_limit_sec ? a.time_limit_sec * 1000 : null })}</div>
     </section>
 

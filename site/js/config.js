@@ -5,5 +5,5 @@ export const CONFIG = {
   PRACTICE_TARGET_SEC: 120,
   IMAGE_SCALE: 0.35,
   IDLE_AFTER_SEC: 180,
-  APP_NAME: "NUET Practice",
+  APP_NAME: "NUET Oqy",
 };

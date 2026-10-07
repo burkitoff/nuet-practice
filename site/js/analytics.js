@@ -83,6 +83,23 @@ export function groupBy(ds, keyFn) {
   return m;
 }
 
+const AWAY_EVENTS = new Set(["idle", "hide"]);
+const AWAY_MIN_MS = 60000, LONG_GAP_MS = 1800000;
+
+export function awayGaps(items) {
+  const rank = e => (e.e === "out" ? 0 : e.e === "in" ? 2 : 1);
+  const evs = items.flatMap(it => it.events || []).sort((a, b) => a.t - b.t || rank(a) - rank(b));
+  const gaps = [];
+  let open = false;
+  for (let i = 0; i < evs.length - 1; i++) {
+    const a = evs[i], b = evs[i + 1];
+    if (a.e === "in") open = true; else if (a.e === "out") open = false;
+    const len = b.t - a.t;
+    if (len >= AWAY_MIN_MS && (AWAY_EVENTS.has(a.e) || !open || len >= LONG_GAP_MS)) gaps.push({ a: a.t, b: b.t });
+  }
+  return gaps;
+}
+
 export function timeline(items) {
   const segs = [], marks = [];
   for (let it of items) {
@@ -95,7 +112,7 @@ export function timeline(items) {
     if (open != null) segs.push({ pos: it.position, t0: open, t1: open });
   }
   segs.sort((a, b) => a.t0 - b.t0);
-  return { segs, marks };
+  return { segs, marks, gaps: awayGaps(items) };
 }
 
 export function byThirds(ds) {

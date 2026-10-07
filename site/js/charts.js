@@ -2,22 +2,61 @@ import { esc, fmtDur } from "./util.js";
 
 const C = { correct: "var(--good)", wrong: "var(--bad)", blank: "var(--muted-2)", line: "var(--accent)", grid: "var(--grid)", ink: "var(--ink-2)" };
 
-function niceStep(maxMin) {
-  for (const s of [1, 2, 5, 10, 15, 20, 30, 60]) if (maxMin / s <= 8) return s;
-  return 120;
+const STEPS = [5e3, 1e4, 15e3, 3e4, 6e4, 12e4, 3e5, 6e5, 9e5, 18e5, 36e5, 72e5, 108e5, 216e5, 432e5, 864e5, 1728e5, 6048e5];
+const stepFor = (span, max) => STEPS.find(s => span / s <= max) || Math.ceil(span / max / 864e5) * 864e5;
+
+export function fmtAxis(ms) {
+  const s = Math.round(ms / 1000), m = Math.floor(s / 60), hr = Math.floor(m / 60), d = Math.floor(hr / 24);
+  if (s % 60 && s < 600) return `${m}:${String(s % 60).padStart(2, "0")}`;
+  if (m < 60) return `${m}m`;
+  if (hr < 24) return m % 60 ? `${hr}h${String(m % 60).padStart(2, "0")}` : `${hr}h`;
+  return hr % 24 ? `${d}d ${hr % 24}h` : `${d}d`;
 }
 
-export function timelineChart({ segs, marks }, { total, limitMs, width = 760 }) {
+function fmtAway(ms) {
+  const m = Math.round(ms / 60000), hr = Math.floor(m / 60), d = Math.floor(hr / 24);
+  if (hr < 1) return `${m}m`;
+  if (d < 1) return m % 60 ? `${hr}h ${m % 60}m` : `${hr}h`;
+  return hr % 24 ? `${d}d ${hr % 24}h` : `${d}d`;
+}
+
+export function timelineChart({ segs, marks, gaps = [] }, { total, limitMs, width = 760 }) {
   const H = Math.max(180, Math.min(520, total * 14 + 50));
   const pad = { l: 38, r: 12, t: 12, b: 30 };
-  const tMax = Math.max(limitMs || 0, ...segs.map(s => s.t1), ...marks.map(m => m.t), 60000);
-  const x = t => pad.l + (t / tMax) * (width - pad.l - pad.r);
+  const end = Math.max(limitMs || 0, ...segs.map(s => s.t1), ...marks.map(m => m.t), 60000);
+  const breaks = limitMs ? [] : gaps.filter(g => g.b <= end);
+  const awayMs = breaks.reduce((s, g) => s + g.b - g.a, 0);
+  const B = breaks.length ? Math.max(5000, (end - awayMs) * 0.05) : 0;
+  const shown = t => {
+    let off = 0;
+    for (const g of breaks) {
+      if (t >= g.b) off += g.b - g.a - B;
+      else if (t > g.a) return g.a - off + ((t - g.a) / (g.b - g.a)) * B;
+      else break;
+    }
+    return t - off;
+  };
+  const span = shown(end);
+  const active = t => shown(t) - B * breaks.filter(k => k.b <= t).length;
+  const x = t => pad.l + (shown(t) / span) * (width - pad.l - pad.r);
   const y = p => pad.t + ((p - 0.5) / total) * (H - pad.t - pad.b);
   let g = "";
-  const stepMin = niceStep(tMax / 60000);
-  for (let m = 0; m * 60000 <= tMax; m += stepMin)
-    g += `<line x1="${x(m * 60000)}" x2="${x(m * 60000)}" y1="${pad.t}" y2="${H - pad.b}" stroke="${C.grid}"/>` +
-      `<text x="${x(m * 60000)}" y="${H - 10}" text-anchor="middle" class="ax">${m}m</text>`;
+  const step = stepFor(span - B * breaks.length, 8);
+  const ranges = [];
+  let from = 0;
+  for (const k of breaks) { ranges.push([from, k.a]); from = k.b; }
+  ranges.push([from, end]);
+  let lastX = -1e9;
+  for (const [r0, r1] of ranges) {
+    const a0 = active(r0);
+    for (let ta = Math.ceil(a0 / step) * step; ta <= a0 + r1 - r0; ta += step) {
+      const px = x(r0 + ta - a0);
+      if (px - lastX < 40) continue;
+      lastX = px;
+      g += `<line x1="${px}" x2="${px}" y1="${pad.t}" y2="${H - pad.b}" stroke="${C.grid}"/>` +
+        `<text x="${px}" y="${H - 10}" text-anchor="middle" class="ax">${fmtAxis(ta)}</text>`;
+    }
+  }
   const yStep = total > 30 ? 10 : 5;
   for (let p = 1; p <= total; p += p === 1 ? yStep - 1 : yStep)
     g += `<text x="${pad.l - 6}" y="${y(p) + 4}" text-anchor="end" class="ax">${p}</text>`;
@@ -29,11 +68,21 @@ export function timelineChart({ segs, marks }, { total, limitMs, width = 760 }) 
   segs.forEach((s, i) => { d += `${i ? "L" : "M"}${x(s.t0).toFixed(1)},${y(s.pos).toFixed(1)} L${x(s.t1).toFixed(1)},${y(s.pos).toFixed(1)} `; });
   g += `<path d="${d}" fill="none" stroke="${C.line}" stroke-width="2" stroke-linejoin="round"/>`;
   segs.forEach(s => {
-    g += `<line x1="${x(s.t0)}" x2="${Math.max(x(s.t1), x(s.t0) + 1.5)}" y1="${y(s.pos)}" y2="${y(s.pos)}" stroke="${C.line}" stroke-width="5" stroke-linecap="round"><title>Q${s.pos}: ${fmtDur(s.t0)}–${fmtDur(s.t1)} (${fmtDur(s.t1 - s.t0)})</title></line>`;
+    g += `<line x1="${x(s.t0)}" x2="${Math.max(x(s.t1), x(s.t0) + 1.5)}" y1="${y(s.pos)}" y2="${y(s.pos)}" stroke="${C.line}" stroke-width="5" stroke-linecap="round"><title>Q${s.pos}: ${fmtDur(active(s.t0))}–${fmtDur(active(s.t1))}</title></line>`;
+  });
+  breaks.forEach(k => {
+    const x0 = x(k.a), x1 = x(k.b), cx = (x0 + x1) / 2, cy = (pad.t + H - pad.b) / 2, z = 4;
+    const label = `away ${fmtAway(k.b - k.a)}`;
+    g += `<g class="gap"><title>Away for ${fmtAway(k.b - k.a)} (not counted)</title>` +
+      `<rect x="${x0}" y="${pad.t - 4}" width="${x1 - x0}" height="${H - pad.b - pad.t + 8}" fill="var(--surface)"/>` +
+      `<path d="M${x0},${pad.t - 4} l${-z},${z * 2} l${z * 2},${z * 2} l${-z * 2},${z * 2}" fill="none" stroke="var(--line-2)"/>` +
+      `<line x1="${x0}" x2="${x0}" y1="${pad.t}" y2="${H - pad.b}" stroke="var(--line-2)" stroke-dasharray="3 3"/>` +
+      `<line x1="${x1}" x2="${x1}" y1="${pad.t}" y2="${H - pad.b}" stroke="var(--line-2)" stroke-dasharray="3 3"/>` +
+      `<text x="${cx}" y="${cy}" transform="rotate(-90 ${cx} ${cy})" text-anchor="middle" dominant-baseline="central" class="ax">${esc(label)}</text></g>`;
   });
   marks.forEach(m => {
     const col = m.correct == null ? C.ink : m.correct ? C.correct : C.wrong;
-    g += `<circle cx="${x(m.t)}" cy="${y(m.pos)}" r="4" fill="${col}" stroke="var(--surface)" stroke-width="1.5"><title>Q${m.pos}: chose ${esc(m.v)} at ${fmtDur(m.t)}</title></circle>`;
+    g += `<circle cx="${x(m.t)}" cy="${y(m.pos)}" r="4" fill="${col}" stroke="var(--surface)" stroke-width="1.5"><title>Q${m.pos}: chose ${esc(m.v)} at ${fmtDur(active(m.t))}</title></circle>`;
   });
   return `<svg class="chart" viewBox="0 0 ${width} ${H}" role="img" aria-label="Timeline of the attempt">${g}</svg>`;
 }
@@ -45,9 +94,9 @@ export function timeBars(items, { targetMs, width = 760, height = 200, onLabel =
   const bw = (width - pad.l - pad.r) / n;
   const y = v => height - pad.b - (v / maxT) * (height - pad.t - pad.b);
   let g = "";
-  const stepMin = niceStep(maxT / 60000 * 2) / 2 || 0.5;
-  for (let m = 0; m * 60000 <= maxT; m += stepMin)
-    g += `<line x1="${pad.l}" x2="${width - pad.r}" y1="${y(m * 60000)}" y2="${y(m * 60000)}" stroke="${C.grid}"/><text x="${pad.l - 6}" y="${y(m * 60000) + 4}" text-anchor="end" class="ax">${m}m</text>`;
+  const step = stepFor(maxT, 6);
+  for (let t = 0; t <= maxT; t += step)
+    g += `<line x1="${pad.l}" x2="${width - pad.r}" y1="${y(t)}" y2="${y(t)}" stroke="${C.grid}"/><text x="${pad.l - 6}" y="${y(t) + 4}" text-anchor="end" class="ax">${fmtAxis(t)}</text>`;
   items.forEach((it, i) => {
     const col = it.status === "correct" ? C.correct : it.status === "wrong" ? C.wrong : C.blank;
     const x0 = pad.l + i * bw + bw * 0.15, w = Math.max(1, bw * 0.7);

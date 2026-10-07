@@ -5,7 +5,8 @@ import { $, esc, fmtDur, fmtDate, pct, fmtPct, toast, modal } from "./util.js";
 export function showLogin(root, { onLogin }) {
   root.innerHTML = `
   <div class="login-wrap"><form class="card login" id="loginForm" autocomplete="on">
-    <h1>${esc(CONFIG.APP_NAME)}</h1>
+    <h1 class="sr-only">${esc(CONFIG.APP_NAME)}</h1><img class="login-logo" src="img/logo-stacked.svg" alt="" width="150" height="153">
+    <p class="tagline">Train your aim.</p>
     <p class="muted">Log in with the username and password your teacher gave you.</p>
     <label>Username<input name="u" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
     <label>Password<input name="p" type="password" autocomplete="current-password" required></label>
