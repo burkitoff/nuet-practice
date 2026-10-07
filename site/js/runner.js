@@ -1,5 +1,5 @@
 import { api } from "./api.js";
-import { renderQuestion, mediaPaths, LETTERS } from "./render.js";
+import { renderQuestion, mediaPaths, LETTERS, lettersFor } from "./render.js";
 import { $, $$, esc, fmtDur, modal, toast, h } from "./util.js";
 import { CONFIG } from "./config.js";
 
@@ -104,7 +104,7 @@ export async function runAttempt(root, attemptId, { go }) {
           <span class="nav-mid" id="navMid"></span>
           <button class="btn" id="next">Next →</button>
         </div>
-        <p class="hint">Keys: <kbd>A</kbd>–<kbd>E</kbd> choose · <kbd>Shift</kbd>+letter cross out · <kbd>←</kbd><kbd>→</kbd> move · <kbd>F</kbd> flag</p>
+        <p class="hint">Keys: <kbd>A</kbd>–<kbd>${S.some(it => lettersFor(qById[it.question_id]).includes("E")) ? "E" : "D"}</kbd> choose · <kbd>Shift</kbd>+letter cross out · <kbd>←</kbd><kbd>→</kbd> move · <kbd>F</kbd> flag</p>
       </div>
       <aside class="sheet" id="sheet">
         <div class="sheet-head">Answer sheet</div>
@@ -120,7 +120,7 @@ export async function runAttempt(root, attemptId, { go }) {
     grid.innerHTML = S.map((it, i) => `
       <div class="sheet-row ${i === cur ? "is-cur" : ""} ${it.locked && !isMock ? (it.is_correct ? "is-right" : "is-wrongrow") : ""}" data-row="${i}">
         <button class="sheet-num" data-go="${i}" aria-label="Go to question ${i + 1}">${i + 1}</button>
-        ${LETTERS.map(L => `<button class="bubble ${it.answer === L ? "is-on" : ""}" data-bub="${i}:${L}" aria-label="Q${i + 1} ${L}" ${it.locked ? "disabled" : ""}>${L}</button>`).join("")}
+        ${lettersFor(qById[it.question_id]).map(L => `<button class="bubble ${it.answer === L ? "is-on" : ""}" data-bub="${i}:${L}" aria-label="Q${i + 1} ${L}" ${it.locked ? "disabled" : ""}>${L}</button>`).join("")}
         <span class="sheet-flag">${it.flagged ? "⚑" : ""}</span>
       </div>`).join("");
   }
@@ -152,7 +152,7 @@ export async function runAttempt(root, attemptId, { go }) {
   }
 
   function select(i, L) {
-    const it = S[i]; if (it.locked || finished) return;
+    const it = S[i]; if (it.locked || finished || !lettersFor(qById[it.question_id]).includes(L)) return;
     if (it.answer === L) { it.answer = null; ev(it, "clr"); }
     else {
       if (it.answer) it.changes++;
@@ -168,7 +168,7 @@ export async function runAttempt(root, attemptId, { go }) {
     scheduleSave();
   }
   function cross(L) {
-    const it = S[cur]; if (it.locked) return;
+    const it = S[cur]; if (it.locked || !lettersFor(qById[it.question_id]).includes(L)) return;
     if (it.crossed.has(L)) { it.crossed.delete(L); ev(it, "ux", L); } else { it.crossed.add(L); ev(it, "x", L); }
     draw();
   }

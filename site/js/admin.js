@@ -1,7 +1,7 @@
 import { api } from "./api.js";
 import { deriveItems, summarize, groupBy, questionStats, insights } from "./analytics.js";
 import { accBar, ratioPill } from "./charts.js";
-import { renderQuestion, mediaPaths } from "./render.js";
+import { renderQuestion, mediaPaths, lettersFor } from "./render.js";
 import { targetMs } from "./analytics.js";
 import { $, $$, esc, h, fmtDur, fmtDate, pct, fmtPct, toast, modal, randomPassword, downloadCsv } from "./util.js";
 
@@ -137,14 +137,14 @@ export async function showMockResults(root, mockId, ctx) {
       <tr class="total"><td>avg time</td><td></td><td></td>${mock.question_ids.map(qid => `<td class="qc small">${qst[qid] ? Math.round(qst[qid].avgMs / 1000) : ""}</td>`).join("")}<td></td></tr>
       </tbody></table></div>` : `<p class="muted">Nobody has submitted this mock yet.</p>`}
     </section>
-    ${subAtt.length ? `<section class="card"><h2>Questions</h2><table class="tbl"><thead><tr><th>#</th><th>Question</th><th>Type</th><th>Correct</th><th>Avg time</th><th>Answers (A B C D E blank)</th><th></th></tr></thead><tbody>
+    ${subAtt.length ? `<section class="card"><h2>Questions</h2><table class="tbl"><thead><tr><th>#</th><th>Question</th><th>Type</th><th>Correct</th><th>Avg time</th><th>Answers</th><th></th></tr></thead><tbody>
       ${mock.question_ids.map((qid, i) => { const q = qById[qid] || {};
         const mine = its.filter(it => it.question_id === qid); const voided = mine.length && mine.every(it => it.excluded);
         const x = qst[qid];
         const btn = `<button class="btn btn-ghost btn-sm" data-void="${esc(qid)}" data-on="${voided ? 0 : 1}" title="${voided ? "Count this question again" : "Stop counting this question for everyone (e.g. the question itself is wrong)"}">${voided ? "Un-void" : "Void"}</button>`;
         if (!x) return voided ? `<tr class="is-excluded"><td>${i + 1}</td><td>${esc(qid)}</td><td colspan="4"><span class="pill">voided — not counted for anyone</span></td><td>${btn}</td></tr>` : "";
         return `<tr><td>${i + 1}</td><td><a href="#" data-prev="${esc(qid)}">${esc(qid)}</a></td><td class="small">${esc(L[q.subcategory] || q.subcategory || "")}</td><td>${accBar(x.acc)}</td><td>${fmtDur(x.avgMs)}</td>
-          <td class="dist">${["A", "B", "C", "D", "E"].map(Lt => `<span class="${Lt === keys[qid] ? "key" : ""}">${Lt}:${x.dist[Lt]}</span>`).join(" ")} <span class="muted">–:${x.dist.blank}</span></td><td>${btn}</td></tr>`; }).join("")}
+          <td class="dist">${lettersFor(q).map(Lt => `<span class="${Lt === keys[qid] ? "key" : ""}">${Lt}:${x.dist[Lt]}</span>`).join(" ")} <span class="muted">–:${x.dist.blank}</span></td><td>${btn}</td></tr>`; }).join("")}
       </tbody></table></section>` : ""}`;
 
   body.onclick = async e => {
@@ -379,7 +379,7 @@ export async function showQuestions(root, ctx) {
   const reports = (await api.reports()).filter(r => r.status === "open");
   const repN = qid => reports.filter(r => r.question_id === qid).length;
   const keyDoubt = qid => { const x = st[qid], k = keys[qid]; if (!x || x.n < 4 || !k) return false;
-    return ["A", "B", "C", "D", "E"].some(l => l !== k && x.dist[l] > x.dist[k] && x.dist[l] >= 3); };
+    return lettersFor(qById[qid]).some(l => l !== k && x.dist[l] > x.dist[k] && x.dist[l] >= 3); };
   const mocks = await api.mocks();
   const inMock = qid => mocks.filter(m => m.question_ids.includes(qid)).map(m => m.title);
   const L = ctx.labels;
@@ -410,7 +410,7 @@ export async function showQuestions(root, ctx) {
   $("#fs", body).onchange = e => { sort = e.target.value; render(); };
   body.onclick = e => { const p = e.target.closest("[data-prev]"); if (p) { e.preventDefault();
     const x = st[p.dataset.prev];
-    previewQuestion(p.dataset.prev, x ? `<p class="small muted">Answered ${x.n}× · ${x.acc}% correct · avg ${fmtDur(x.avgMs)} · answers ${["A", "B", "C", "D", "E"].map(l => `${l}:${x.dist[l]}`).join(" ")} blank:${x.dist.blank}</p>` : "");
+    previewQuestion(p.dataset.prev, x ? `<p class="small muted">Answered ${x.n}× · ${x.acc}% correct · avg ${fmtDur(x.avgMs)} · answers ${lettersFor(qById[p.dataset.prev]).map(l => `${l}:${x.dist[l]}`).join(" ")} blank:${x.dist.blank}</p>` : "");
   } };
   render();
 }

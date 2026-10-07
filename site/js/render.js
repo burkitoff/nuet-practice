@@ -13,6 +13,7 @@ if (typeof document !== "undefined") {
 }
 
 export const LETTERS = ["A", "B", "C", "D", "E"];
+export const lettersFor = q => (q && q.n_options === 4 ? LETTERS.slice(0, 4) : LETTERS);
 
 const inline = s => esc(s).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
 
@@ -23,7 +24,7 @@ export function mediaPaths(q) {
 }
 
 export function hasParsedContent(q) {
-  const anyOpt = LETTERS.some(L => (q.options || {})[L]);
+  const anyOpt = lettersFor(q).some(L => (q.options || {})[L]);
   const optPics = (q.media || []).filter(m => m.position === "options" && m.letter).length;
   return (q.stem || "").trim() && (anyOpt || optPics >= 2);
 }
@@ -51,11 +52,12 @@ export function renderQuestion(q, urls, o = {}) {
     stemHtml = blocks.join("");
   }
 
-  const optMedia = Object.fromEntries(media.filter(m => m.position === "options" && m.letter).map(m => [m.letter, m]));
-  const pictures = !LETTERS.some(L => (q.options || {})[L]) && Object.keys(optMedia).length > 0;
+  const letters = lettersFor(q);
+  const optMedia = Object.fromEntries(media.filter(m => m.position === "options" && letters.includes(m.letter)).map(m => [m.letter, m]));
+  const pictures = !letters.some(L => (q.options || {})[L]) && Object.keys(optMedia).length > 0;
   const snapshotOnly = !hasParsedContent(q) && q.snapshot_path;
 
-  const opts = LETTERS.map(L => {
+  const opts = letters.map(L => {
     const text = (q.options || {})[L];
     const m = optMedia[L];
     const cls = ["opt"];
