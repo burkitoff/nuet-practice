@@ -35,7 +35,8 @@ export async function showHome(root, ctx) {
   root.innerHTML = `<div class="loading">Loading…</div>`;
   await api.finalizeExpired().catch(() => {});
   const [mocks, attempts] = await Promise.all([api.mocks(), api.myAttempts()]);
-  const open = attempts.filter(a => a.status === "in_progress");
+  // unfinished practice sets are thrown away when left, so only mocks show up here
+  const open = attempts.filter(a => a.status === "in_progress" && a.mode === "mock");
   const done = attempts.filter(a => a.status === "submitted");
   const used = id => attempts.filter(a => a.mock_id === id).length;
   const visibleMocks = mocks.filter(m => m.published);
@@ -61,7 +62,7 @@ export async function showHome(root, ctx) {
       </section>
       <section class="card">
         <h2>Practice</h2>
-        <p class="muted small">Short sets with the answer shown after each question.</p>
+        <p class="muted small">Short sets with no time limit. Answer them, press Finish, then see the correct answers.</p>
         <div class="quick">
           <button class="btn" data-quick="1">1 random question</button>
           <button class="btn" data-quick="5">5 random</button>

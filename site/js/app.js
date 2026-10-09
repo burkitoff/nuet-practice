@@ -10,6 +10,7 @@ import { showClass, showStudents, showMocks, showMockEdit, showMockResults, show
 const app = $("#app");
 const ctx = { me: null, taxonomy: [], labels: {}, go, idleSec: CONFIG.IDLE_AFTER_SEC };
 let current = null;
+let shownHash = location.hash, restoring = false;
 
 function go(hash) { if (location.hash === hash) route(); else location.hash = hash; }
 
@@ -34,6 +35,13 @@ function shell(active) {
 
 async function route() {
   if (!ctx.me) return;
+  if (restoring && location.hash === shownHash) { restoring = false; return; }
+  // A page can refuse to be left (e.g. a practice asks "leave without saving?").
+  if (current?.confirmLeave && location.hash !== shownHash && !(await current.confirmLeave())) {
+    if (location.hash !== shownHash) { restoring = true; location.hash = shownHash; }
+    return;
+  }
+  shownHash = location.hash;
   if (current?.destroy) { try { await current.destroy(); } catch (_) {} }
   current = null;
   const parts = (location.hash.replace(/^#\/?/, "") || "").split("/");

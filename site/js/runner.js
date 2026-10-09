@@ -91,6 +91,7 @@ export async function runAttempt(root, attemptId, { go }) {
         <button class="btn btn-ghost btn-sm" id="fontDown" title="Smaller text">A−</button>
         <button class="btn btn-ghost btn-sm" id="fontUp" title="Larger text">A+</button>
         <button class="btn btn-ghost btn-sm sheet-toggle" id="sheetToggle">Answer sheet</button>
+        ${isMock ? "" : `<button class="btn btn-ghost btn-sm" id="leave" title="Leave and throw this practice away">Leave<span class="wide-only"> without saving</span></button>`}
         <button class="btn btn-primary btn-sm" id="finish">${isMock ? "Finish test" : "Finish"}</button>
       </div>
     </header>
@@ -118,7 +119,7 @@ export async function runAttempt(root, attemptId, { go }) {
 
   function drawSheet() {
     grid.innerHTML = S.map((it, i) => `
-      <div class="sheet-row ${i === cur ? "is-cur" : ""} ${it.locked && !isMock ? (it.is_correct ? "is-right" : "is-wrongrow") : ""}" data-row="${i}">
+      <div class="sheet-row ${i === cur ? "is-cur" : ""}" data-row="${i}">
         <button class="sheet-num" data-go="${i}" aria-label="Go to question ${i + 1}">${i + 1}</button>
         ${lettersFor(qById[it.question_id]).map(L => `<button class="bubble ${it.answer === L ? "is-on" : ""}" data-bub="${i}:${L}" aria-label="Q${i + 1} ${L}" ${it.locked ? "disabled" : ""}>${L}</button>`).join("")}
         <span class="sheet-flag">${it.flagged ? "⚑" : ""}</span>
@@ -130,23 +131,11 @@ export async function runAttempt(root, attemptId, { go }) {
     paper.style.setProperty("--fs", fontScale);
     paper.innerHTML = renderQuestion(q, urls, {
       number: it.position, answer: it.answer, crossed: it.crossed, interactive: !it.locked,
-      correct: it.locked && !isMock ? it.correct_answer : null,
     });
     $("#ebPos", root).innerHTML = `<span class="wide-only">Question </span>${cur + 1}<span class="wide-only"> of </span><span class="narrow-only">/</span>${S.length}`;
     $("#prev", root).disabled = cur === 0;
     $("#next", root).disabled = cur === S.length - 1;
     const fb = $("#flag", root); fb.classList.toggle("is-on", it.flagged); fb.textContent = it.flagged ? "⚑ Flagged" : "⚑ Flag";
-    const mid = $("#navMid", root);
-    if (!isMock) {
-      if (it.locked) {
-        mid.innerHTML = it.is_correct
-          ? `<span class="result ok">✓ Correct · ${fmtDur(it.time_ms)}</span>`
-          : `<span class="result bad">✗ Answer: ${esc(it.correct_answer)} · ${fmtDur(it.time_ms)}</span>`;
-      } else {
-        mid.innerHTML = `<button class="btn btn-primary" id="check" ${it.answer ? "" : "disabled"}>Check answer</button>`;
-        $("#check", root).onclick = check;
-      }
-    } else mid.textContent = "";
     drawSheet();
     paper.scrollTop = 0; window.scrollTo({ top: 0 });
   }
@@ -174,16 +163,6 @@ export async function runAttempt(root, attemptId, { go }) {
   }
   function flag() { const it = S[cur]; it.flagged = !it.flagged; ev(it, it.flagged ? "flag" : "unflag"); draw(); }
 
-  async function check() {
-    const it = S[cur]; if (!it.answer || it.locked) return;
-    accrue();
-    try {
-      const r = await api.checkPractice(attemptId, payload(it));
-      it.locked = true; it.correct_answer = r.correct_answer; it.is_correct = r.is_correct;
-      dirty.delete(it); draw();
-    } catch (e) { toast(e.message, "error"); }
-  }
-
   let saveTimer = null;
   function scheduleSave() { clearTimeout(saveTimer); saveTimer = setTimeout(save, 2500); }
   async function save() {
@@ -205,13 +184,10 @@ export async function runAttempt(root, attemptId, { go }) {
     if (!auto) {
       const blanks = S.filter(x => !x.answer).map(x => x.position);
       const flags = S.filter(x => x.flagged).map(x => x.position);
-      const unchecked = S.filter(x => x.answer && !x.locked).length;
-      const body = isMock
-        ? `<p>You answered <b>${S.length - blanks.length}</b> of ${S.length} questions.</p>
+      const body = `<p>You answered <b>${S.length - blanks.length}</b> of ${S.length} questions.</p>
            ${blanks.length ? `<p>Unanswered: ${blanks.join(", ")}</p>` : ""}
            ${flags.length ? `<p>Flagged: ${flags.join(", ")}</p>` : ""}
-           <p>Once submitted you can't change your answers.</p>`
-        : `<p>${S.filter(x => x.locked).length} checked question(s) will be scored.${unchecked ? ` ${unchecked} answered but not checked will be ignored.` : ""}</p>`;
+           <p>Once submitted you can't change your answers.${isMock ? "" : " Then you'll see the correct answers."}</p>`;
       const ok = await modal({ title: isMock ? "Submit your test?" : "Finish practice?", body,
         buttons: [{ label: "Keep working", value: false }, { label: "Submit", value: true, kind: "primary" }] });
       if (!ok) return;
@@ -264,6 +240,8 @@ export async function runAttempt(root, attemptId, { go }) {
   $("#flag", root).onclick = flag;
   $("#report", root).onclick = () => reportProblem(S[cur].question_id, attemptId);
   $("#finish", root).onclick = () => finish(false);
+  const leaveBtn = $("#leave", root);
+  if (leaveBtn) leaveBtn.onclick = async () => { if (await confirmLeave()) go("#/"); };
   $("#sheetToggle", root).onclick = () => root.querySelector(".exam").classList.toggle("sheet-open");
   $("#fontUp", root).onclick = () => { fontScale = Math.min(1.4, +(fontScale + 0.1).toFixed(2)); pref("font", fontScale); draw(); };
   $("#fontDown", root).onclick = () => { fontScale = Math.max(0.8, +(fontScale - 0.1).toFixed(2)); pref("font", fontScale); draw(); };
@@ -278,7 +256,6 @@ export async function runAttempt(root, attemptId, { go }) {
     else if (e.key === "ArrowRight" && cur < S.length - 1) { e.preventDefault(); enter(cur + 1); }
     else if (e.key === "ArrowLeft" && cur > 0) { e.preventDefault(); enter(cur - 1); }
     else if (k === "F") flag();
-    else if (e.key === "Enter" && !isMock) check();
   };
   const onVis = () => {
     if (finished || cur < 0) return;
@@ -302,10 +279,30 @@ export async function runAttempt(root, attemptId, { go }) {
     window.removeEventListener("beforeunload", onUnload);
   }
 
+  // Practice is optional: leaving it throws it away (answers, events and all).
+  // If the student just closes the tab, the server throws it away when they start the next practice.
+  let leavePrompt = null;
+  function confirmLeave() {
+    if (finished || isMock) return Promise.resolve(true);
+    if (!leavePrompt) leavePrompt = modal({
+      title: "Leave this practice?",
+      body: `<p>Your answers in this set won't be saved, and it won't count in your results or stats.</p>`,
+      buttons: [{ label: "Leave without saving", value: true, kind: "danger" }, { label: "Stay", value: false, kind: "primary" }],
+    }).then(async ok => {
+      leavePrompt = null;
+      if (!ok || finished) return !!ok || finished;
+      finished = true; cleanup(); dropBackup(attemptId);
+      try { await api.discardPractice(attemptId); } catch (_) { /* offline: removed when the next practice starts */ }
+      return true;
+    });
+    return leavePrompt;
+  }
+
   let start = S.findIndex(x => !x.answer && !x.locked); if (start < 0) start = 0;
   enter(start); tick();
 
   return {
+    confirmLeave,
     async destroy() { if (!finished) { accrue(); if (cur >= 0) ev(S[cur], "out"); cur = -1; await save(); } cleanup(); },
   };
 }

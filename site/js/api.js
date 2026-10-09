@@ -88,10 +88,7 @@ function createSupabaseApi() {
     async saveProgress(id, items, elapsed, hidden) {
       return must(await sb.rpc("save_progress", { p_attempt: id, p_items: items, p_elapsed_ms: elapsed, p_hidden_ms: hidden }));
     },
-    async checkPractice(id, item) {
-      const rows = must(await sb.rpc("check_practice", { p_attempt: id, p_item: item }));
-      return rows[0];
-    },
+    async discardPractice(id) { must(await sb.rpc("discard_practice", { p_attempt: id })); },
     async submit(id, items, elapsed, hidden, auto) {
       return must(await sb.rpc("submit_attempt", { p_attempt: id, p_items: items, p_elapsed_ms: elapsed, p_hidden_ms: hidden, p_auto: !!auto }));
     },

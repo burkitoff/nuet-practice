@@ -7,8 +7,7 @@ const stepFor = (span, max) => STEPS.find(s => span / s <= max) || Math.ceil(spa
 
 export function fmtAxis(ms) {
   const s = Math.round(ms / 1000), m = Math.floor(s / 60), hr = Math.floor(m / 60), d = Math.floor(hr / 24);
-  if (s % 60 && s < 600) return `${m}:${String(s % 60).padStart(2, "0")}`;
-  if (m < 60) return `${m}m`;
+  if (m < 60) return `${m}:${String(s % 60).padStart(2, "0")}`;
   if (hr < 24) return m % 60 ? `${hr}h${String(m % 60).padStart(2, "0")}` : `${hr}h`;
   return hr % 24 ? `${d}d ${hr % 24}h` : `${d}d`;
 }
@@ -57,8 +56,8 @@ export function timelineChart({ segs, marks, gaps = [] }, { total, limitMs, widt
         `<text x="${px}" y="${H - 10}" text-anchor="middle" class="ax">${fmtAxis(ta)}</text>`;
     }
   }
-  const yStep = total > 30 ? 10 : 5;
-  for (let p = 1; p <= total; p += p === 1 ? yStep - 1 : yStep)
+  const yStep = total <= 10 ? 1 : total > 30 ? 10 : 5;
+  for (let p = 1; p <= total; p += p === 1 && yStep > 1 ? yStep - 1 : yStep)
     g += `<text x="${pad.l - 6}" y="${y(p) + 4}" text-anchor="end" class="ax">${p}</text>`;
   if (limitMs) {
     g += `<line x1="${x(0)}" y1="${y(1)}" x2="${x(limitMs)}" y2="${y(total)}" stroke="var(--muted-2)" stroke-dasharray="5 4"><title>Even pace</title></line>`;
