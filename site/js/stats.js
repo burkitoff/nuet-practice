@@ -68,7 +68,7 @@ export async function showStats(root, userId, ctx) {
   }
 
   root.innerHTML = `<div class="page">
-    <p class="crumbs"><a href="#/">Home</a>${userId !== ctx.me.id ? ` › <a href="#/admin/class">Class</a>` : ""} › Statistics</p>
+    <p class="crumbs"><a href="#/">Home</a>${userId !== ctx.me.id ? ` › <a href="${ctx.me.role === "admin" ? "#/admin/class" : "#/teach"}">Class</a>` : ""} › Statistics</p>
     <div class="page-head"><h1>${userId === ctx.me.id ? "My statistics" : esc(who.display_name || who.username)}</h1>
       <div class="filters">
         <select id="fMode" aria-label="Mode"><option value="all">Mocks + practice</option><option value="mock">Mocks only</option><option value="practice">Practice only</option></select>

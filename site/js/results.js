@@ -15,7 +15,7 @@ export function eventLog(events) {
 
 export async function showAttempt(root, id, ctx) {
   root.innerHTML = `<div class="loading">Loading…</div>`;
-  const { attempt: a, items } = await api.attempt(id);
+  const { attempt: a, items: rawItems } = await api.attempt(id);
   if (a.status === "in_progress") {
     const me = await api.me();
     if (a.user_id === me.id) { ctx.go(`#/run/${id}`); return; }
@@ -23,6 +23,15 @@ export async function showAttempt(root, id, ctx) {
   const qs = await api.questions(a.question_ids);
   const qById = Object.fromEntries(qs.map(q => [q.id, q]));
   const isAdmin = ctx.me.role === "admin";
+  const isTeacher = ctx.me.role === "teacher" && a.user_id !== ctx.me.id;
+  const staff = isAdmin || isTeacher;
+  // a 'full' teacher sees the keys even before they are released to the student
+  let unreleased = false, items = rawItems;
+  if (isTeacher && ctx.me.teacher_level === "full" && rawItems.some(i => i.locked && !i.correct_answer)) {
+    const keys = await api.answerKeys(a.question_ids);
+    unreleased = true;
+    items = rawItems.map(i => ({ ...i, correct_answer: i.correct_answer || (i.locked ? keys[i.question_id] : null) || null }));
+  }
   const exBy = Object.fromEntries(items.map(i => [i.question_id, i]));
   const rows = deriveItems([{ ...a, excluded: false }], items.map(i => ({ ...i, excluded: false })), qById)
     .map(d => ({ ...d, isExcluded: !!exBy[d.question_id].excluded || a.excluded, note: exBy[d.question_id].admin_note, overridden: exBy[d.question_id].time_override_ms != null }))
@@ -35,7 +44,7 @@ export async function showAttempt(root, id, ctx) {
   const reveal = ds.some(d => d.correct_answer);
   const L = ctx.labels;
   let owner = "";
-  if (ctx.me.role === "admin" && a.user_id !== ctx.me.id) {
+  if (staff && a.user_id !== ctx.me.id) {
     const p = (await api.profiles()).find(x => x.id === a.user_id);
     owner = p ? ` · <a href="#/stats/${p.id}">${esc(p.display_name || p.username)}</a>` : "";
   }
@@ -45,11 +54,12 @@ export async function showAttempt(root, id, ctx) {
 
   root.innerHTML = `
   <div class="page">
-    <p class="crumbs"><a href="#/">Home</a> › ${isMock ? "Mock" : "Practice"} result${owner}</p>
+    <p class="crumbs"><a href="#/">Home</a>${isTeacher ? ` › <a href="#/teach">My groups</a>` : ""} › ${isMock ? "Mock" : "Practice"} result${owner}</p>
     <div class="result-head card">
       <div>
         <h1>${esc(a.title || (isMock ? "Mock" : "Practice"))}</h1>
         <p class="muted">${fmtDate(a.started_at)}${a.auto_submitted ? " · <b>submitted automatically</b> (time ran out)" : ""}</p>
+        ${unreleased ? `<p class="note">Correct answers shown here are <b>not released to the student yet</b>.</p>` : ""}
         ${a.excluded ? `<p class="note">Your teacher has left this attempt out of your statistics${a.admin_note ? `: ${esc(a.admin_note)}` : ""}.</p>` : ""}
         ${!a.excluded && rows.some(d => d.isExcluded) ? `<p class="note">${rows.filter(d => d.isExcluded).length} question(s) are not counted in the statistics (set by your teacher).</p>` : ""}
       </div>
@@ -89,7 +99,7 @@ export async function showAttempt(root, id, ctx) {
 
     <section class="card">
       <h2>Question by question</h2>
-      ${!reveal && isMock ? `<p class="note">Correct answers for this mock will be shown after your teacher releases them.</p>` : ""}
+      ${!reveal && isMock ? `<p class="note">${staff ? "Correct answers for this mock haven't been released yet." : "Correct answers for this mock will be shown after your teacher releases them."}</p>` : ""}
       <table class="tbl qtable"><thead><tr><th>#</th><th>Type</th><th>Yours</th><th>Correct</th><th>Time</th><th>1st answer after</th><th>Visits</th><th>Changes</th><th></th>${isAdmin ? "<th></th>" : ""}</tr></thead>
       <tbody>${rows.map(d => `
         <tr class="qrow st-${d.status} ${d.isExcluded ? "is-excluded" : ""}" data-q="${d.position}" title="${d.isExcluded ? "Not counted" + (d.note ? ": " + esc(d.note) : "") : ""}">
@@ -138,7 +148,7 @@ export async function showAttempt(root, id, ctx) {
     det.firstElementChild.innerHTML = `<div class="detail-grid">
       <div class="paper paper-small">${renderQuestion(q, urls, { number: pos, answer: d.answer, crossed: new Set(d.crossed), correct: d.correct_answer })}</div>
       <div><h3>What happened</h3>${eventLog(d.events)}
-      ${isAdmin ? `<p class="muted small">${esc(q.id)}${d.note ? ` · note: ${esc(d.note)}` : ""}</p>` : `<p><button class="btn btn-ghost btn-sm" data-report="${esc(q.id)}">Report a problem with this question</button></p>`}</div></div>`;
+      ${staff ? `<p class="muted small">${esc(q.id)}${d.note ? ` · note: ${esc(d.note)}` : ""}</p>` : `<p><button class="btn btn-ghost btn-sm" data-report="${esc(q.id)}">Report a problem with this question</button></p>`}</div></div>`;
     det.hidden = false;
     det.querySelector("[data-report]")?.addEventListener("click", () => reportProblem(q.id, a.id));
   }));

@@ -6,11 +6,14 @@ import { targetMs } from "./analytics.js";
 import { $, $$, esc, h, fmtDur, fmtDate, pct, fmtPct, toast, modal, randomPassword, downloadCsv } from "./util.js";
 
 const TABS = [["class", "Class"], ["cleanup", "Data clean-up"], ["students", "Students"], ["mocks", "Mocks"], ["questions", "Questions"]];
+const TEACH_TABS = [["class", "Class"], ["mocks", "Mocks"]];
+const isAdm = ctx => ctx.me.role === "admin";
+const P = ctx => (isAdm(ctx) ? "#/admin" : "#/teach");
 
-function frame(root, tab, inner) {
+function frame(root, tab, ctx, inner) {
   root.innerHTML = `<div class="page wide">
-    <div class="page-head"><h1>Teacher</h1>
-      <nav class="tabs">${TABS.map(([k, l]) => `<a href="#/admin/${k}" class="${k === tab ? "on" : ""}">${l}</a>`).join("")}</nav></div>
+    <div class="page-head"><h1>${isAdm(ctx) ? "Admin" : "My groups"}</h1>
+      <nav class="tabs">${(isAdm(ctx) ? TABS : TEACH_TABS).map(([k, l]) => `<a href="${P(ctx)}/${k}" class="${k === tab ? "on" : ""}">${l}</a>`).join("")}</nav></div>
     <div id="adminBody">${inner || `<div class="loading">Loading…</div>`}</div></div>`;
   return $("#adminBody", root);
 }
@@ -34,12 +37,14 @@ async function previewQuestion(qid, extra = "") {
 }
 
 export async function showClass(root, ctx) {
-  const body = frame(root, "class");
-  const { profiles, groups, qById } = await base(true);
+  const body = frame(root, "class", ctx);
+  const { profiles, groups: allGroups, qById } = await base(true);
+  const groups = isAdm(ctx) ? allGroups : allGroups.filter(g => ctx.myGroups.includes(g.code));
   const { attempts, items } = await api.statsData("*");
   const all = deriveItems(attempts, items, qById);
   const L = ctx.labels;
   const students = profiles.filter(p => p.role === "student");
+  if (!isAdm(ctx) && !groups.length) { body.innerHTML = `<div class="card empty"><p>No groups are assigned to your account yet. Ask the admin.</p></div>`; return; }
   let grp = "";
 
   function render() {
@@ -62,8 +67,8 @@ export async function showClass(root, ctx) {
         <select id="grp"><option value="">All groups</option>${groups.map(g => `<option ${g.code === grp ? "selected" : ""}>${esc(g.code)}</option>`).join("")}</select>
         <span class="muted small">${studs.length} students · ${cls.n} answers · ${fmtPct(cls.acc)} correct</span>
         <span class="grow"></span>
-        <button class="btn btn-sm" id="csvSum">Download summary (CSV)</button>
-        <button class="btn btn-sm" id="csvRaw">Download all answers (CSV)</button>
+        ${isAdm(ctx) ? `<button class="btn btn-sm" id="csvSum">Download summary (CSV)</button>
+        <button class="btn btn-sm" id="csvRaw">Download all answers (CSV)</button>` : ""}
       </div>
       <section class="card"><h2>Students</h2>
       <div class="scroll-x"><table class="tbl"><thead><tr><th>Student</th><th>Group</th><th>Mocks</th><th>Mock avg</th><th>Qs</th><th>Correct</th><th>Time vs target</th><th>Rushed</th><th>Stuck</th><th>W→R / R→W</th><th>Last active</th></tr></thead><tbody>
@@ -84,6 +89,7 @@ export async function showClass(root, ctx) {
       </tbody></table></div></section>`;
 
     $("#grp", body).onchange = e => { grp = e.target.value; render(); };
+    if (!isAdm(ctx)) return;
     $("#csvSum", body).onclick = () => downloadCsv("class-summary.csv", [
       ["student", "username", "group", "mocks", "mock_avg_pct", "questions", "correct_pct", "time_vs_target", "rushed", "stuck", "wrong_to_right", "right_to_wrong"],
       ...rows.map(r => [r.s.display_name, r.s.username, r.s.group_code, r.mocks.length, r.mockAvg, r.sum.n, r.sum.acc, r.sum.avgRatio?.toFixed(2), r.sum.rushed, r.sum.stuck, r.sum.wr, r.sum.rw])]);
@@ -100,14 +106,16 @@ export async function showClass(root, ctx) {
 }
 
 export async function showMockResults(root, mockId, ctx) {
-  const body = frame(root, "mocks");
+  const body = frame(root, "mocks", ctx);
   const { profiles, qById } = await base(true);
   const mock = (await api.mocks()).find(m => m.id === mockId);
   if (!mock) { body.innerHTML = `<p>Mock not found.</p>`; return; }
   const allAtt = (await api.allAttempts()).filter(a => a.mock_id === mockId);
   const { attempts, items } = await api.statsData("*");
   const subAtt = attempts.filter(a => a.mock_id === mockId);
+  const adm = isAdm(ctx), pre = P(ctx);
   const keys = await api.answerKeys(mock.question_ids);
+  const hideMarks = !adm && !mock.show_review && ctx.me.teacher_level !== "full";
   const its = items.filter(i => subAtt.some(a => a.id === i.attempt_id)).map(i => ({ ...i, correct_answer: i.correct_answer || keys[i.question_id] }));
   const ds = deriveItems(subAtt, its, qById);
   const pBy = Object.fromEntries(profiles.map(p => [p.id, p]));
@@ -116,11 +124,12 @@ export async function showMockResults(root, mockId, ctx) {
   const L = ctx.labels;
 
   body.innerHTML = `
-    <p class="crumbs"><a href="#/admin/mocks">Mocks</a> › ${esc(mock.title)}</p>
+    <p class="crumbs"><a href="${pre}/mocks">Mocks</a> › ${esc(mock.title)}</p>
     <div class="toolbar"><h2 class="grow">${esc(mock.title)} <span class="muted small">${mock.question_ids.length} Qs · ${fmtDur(mock.time_limit_sec * 1000, { sec: false })}</span></h2>
-      ${mock.show_review ? "" : `<button class="btn btn-sm" id="release">Release answers to students</button>`}</div>
+      ${mock.show_review ? "" : adm ? `<button class="btn btn-sm" id="release">Release answers to students</button>` : `<span class="pill">answers not released to students yet</span>`}</div>
+    ${hideMarks ? `<p class="note">Right/wrong marks are hidden until the answers are released to students.</p>` : ""}
     ${inprog.length ? `<section class="card attention"><h2>In progress (${inprog.length})</h2>${inprog.map(a => `<div class="row-item"><div>${esc(pBy[a.user_id]?.display_name || "?")} <span class="muted small">started ${fmtDate(a.started_at)}</span></div>
-      <button class="btn btn-sm" data-final="${a.id}">Close &amp; grade now</button></div>`).join("")}</section>` : ""}
+      ${adm ? `<button class="btn btn-sm" data-final="${a.id}">Close &amp; grade now</button>` : ""}</div>`).join("")}</section>` : ""}
     <section class="card"><h2>Results</h2>
     ${subAtt.length ? `<div class="scroll-x"><table class="tbl grid-res"><thead><tr><th>Student</th><th>Score</th><th>Time</th>${mock.question_ids.map((q, i) => `<th class="qc" title="${esc(q)}">${i + 1}</th>`).join("")}<th></th></tr></thead><tbody>
       ${subAtt.sort((a, b) => b.score - a.score).map(a => {
@@ -130,10 +139,10 @@ export async function showMockResults(root, mockId, ctx) {
         return `<tr class="${a.excluded ? "is-excluded" : ""}"><td><a href="#/attempt/${a.id}">${esc(pBy[a.user_id]?.display_name || "?")}</a>${a.excluded ? ' <span class="pill">not counted</span>' : ""}</td><td>${adj}</td>
           <td class="small">${fmtDur(used)}${a.auto_submitted ? " ⏱" : ""}</td>
           ${mock.question_ids.map(qid => { const d = row.find(x => x.question_id === qid); if (!d) return "<td></td>";
-            return `<td class="qc st-${d.status}" title="Q${d.position}: ${d.answer || "blank"} · ${fmtDur(d.time_ms)}${d.changes ? ` · ${d.changes} change(s)` : ""}">${d.answer || "·"}</td>`; }).join("")}
-          <td><button class="btn btn-ghost btn-sm" data-del="${a.id}" title="Delete this attempt (lets the student retake)">✕</button></td></tr>`;
+            return `<td class="qc ${hideMarks ? "" : `st-${d.status}`}" title="Q${d.position}: ${d.answer || "blank"} · ${fmtDur(d.time_ms)}${d.changes ? ` · ${d.changes} change(s)` : ""}">${d.answer || "·"}</td>`; }).join("")}
+          <td>${adm ? `<button class="btn btn-ghost btn-sm" data-del="${a.id}" title="Delete this attempt (lets the student retake)">✕</button>` : ""}</td></tr>`;
       }).join("")}
-      <tr class="total"><td>% correct</td><td></td><td></td>${mock.question_ids.map(qid => `<td class="qc">${qst[qid] ? qst[qid].acc : ""}</td>`).join("")}<td></td></tr>
+      ${hideMarks ? "" : `<tr class="total"><td>% correct</td><td></td><td></td>${mock.question_ids.map(qid => `<td class="qc">${qst[qid] ? qst[qid].acc : ""}</td>`).join("")}<td></td></tr>`}
       <tr class="total"><td>avg time</td><td></td><td></td>${mock.question_ids.map(qid => `<td class="qc small">${qst[qid] ? Math.round(qst[qid].avgMs / 1000) : ""}</td>`).join("")}<td></td></tr>
       </tbody></table></div>` : `<p class="muted">Nobody has submitted this mock yet.</p>`}
     </section>
@@ -141,13 +150,14 @@ export async function showMockResults(root, mockId, ctx) {
       ${mock.question_ids.map((qid, i) => { const q = qById[qid] || {};
         const mine = its.filter(it => it.question_id === qid); const voided = mine.length && mine.every(it => it.excluded);
         const x = qst[qid];
-        const btn = `<button class="btn btn-ghost btn-sm" data-void="${esc(qid)}" data-on="${voided ? 0 : 1}" title="${voided ? "Count this question again" : "Stop counting this question for everyone (e.g. the question itself is wrong)"}">${voided ? "Un-void" : "Void"}</button>`;
+        const btn = !adm ? "" : `<button class="btn btn-ghost btn-sm" data-void="${esc(qid)}" data-on="${voided ? 0 : 1}" title="${voided ? "Count this question again" : "Stop counting this question for everyone (e.g. the question itself is wrong)"}">${voided ? "Un-void" : "Void"}</button>`;
         if (!x) return voided ? `<tr class="is-excluded"><td>${i + 1}</td><td>${esc(qid)}</td><td colspan="4"><span class="pill">voided — not counted for anyone</span></td><td>${btn}</td></tr>` : "";
-        return `<tr><td>${i + 1}</td><td><a href="#" data-prev="${esc(qid)}">${esc(qid)}</a></td><td class="small">${esc(L[q.subcategory] || q.subcategory || "")}</td><td>${accBar(x.acc)}</td><td>${fmtDur(x.avgMs)}</td>
+        return `<tr><td>${i + 1}</td><td><a href="#" data-prev="${esc(qid)}">${esc(qid)}</a></td><td class="small">${esc(L[q.subcategory] || q.subcategory || "")}</td><td>${hideMarks ? "" : accBar(x.acc)}</td><td>${fmtDur(x.avgMs)}</td>
           <td class="dist">${lettersFor(q).map(Lt => `<span class="${Lt === keys[qid] ? "key" : ""}">${Lt}:${x.dist[Lt]}</span>`).join(" ")} <span class="muted">–:${x.dist.blank}</span></td><td>${btn}</td></tr>`; }).join("")}
       </tbody></table></section>` : ""}`;
 
   body.onclick = async e => {
+    if (!adm) { const p = e.target.closest("[data-prev]"); if (p) { e.preventDefault(); previewQuestion(p.dataset.prev); } return; }
     const vb = e.target.closest("[data-void]");
     if (vb) { await api.voidQuestion(mockId, vb.dataset.void, vb.dataset.on === "1"); toast(vb.dataset.on === "1" ? "Question voided" : "Question counted again", "good"); return showMockResults(root, mockId, ctx); }
     const f = e.target.closest("[data-final]"), d = e.target.closest("[data-del]"), p = e.target.closest("[data-prev]");
@@ -167,22 +177,30 @@ export async function showMockResults(root, mockId, ctx) {
 }
 
 export async function showStudents(root, ctx) {
-  const body = frame(root, "students");
+  const body = frame(root, "students", ctx);
   const { profiles, groups } = await base(true);
   const studs = profiles.filter(p => p.id !== ctx.me.id);
+  const tgs = await api.teacherGroups();
+  const tgOf = id => tgs.filter(t => t.teacher_id === id).map(t => t.group_code);
+  const LEVELS = { full: "Full — sees correct answers everywhere", results: "Results — sees what the student sees" };
+  const levelOpts = sel => Object.entries(LEVELS).map(([k, l]) => `<option value="${k}" ${k === sel ? "selected" : ""}>${l}</option>`).join("");
+  const grpChecks = sel => groups.length ? groups.map(g => `<label class="check"><input type="checkbox" name="tgrp" value="${esc(g.code)}" ${sel.includes(g.code) ? "checked" : ""}> ${esc(g.code)}${g.label && g.label !== g.code ? ` <span class="muted small">${esc(g.label)}</span>` : ""}</label>`).join("") : `<p class="muted small">No groups yet.</p>`;
   const grpOpts = sel => `<option value="">— none —</option>` + groups.map(g => `<option ${g.code === sel ? "selected" : ""}>${esc(g.code)}</option>`).join("");
 
   body.innerHTML = `
     <div class="two-col">
-      <form class="card form" id="addForm"><h2>Add a student</h2>
+      <form class="card form" id="addForm"><h2>Add an account</h2>
+        <label>Account type<select name="kind"><option value="student">Student</option><option value="teacher">Teacher (view only)</option></select></label>
         <label>Name shown in the app<input name="display_name" required maxlength="80" placeholder="e.g. Aruzhan K."></label>
         <label>Username <span class="muted small">(what they type to log in: a–z, 0–9, . _ -)</span><input name="username" required pattern="[a-z0-9._\\-]{3,32}" autocapitalize="none" spellcheck="false" placeholder="e.g. aruzhan.k"></label>
-        <label>Group<select name="group_code">${grpOpts("")}</select></label>
+        <label data-for="student">Group<select name="group_code">${grpOpts("")}</select></label>
+        <label data-for="teacher" hidden>Teacher level<select name="level">${levelOpts("results")}</select></label>
+        <fieldset data-for="teacher" hidden><legend>Groups they can see</legend>${grpChecks([])}</fieldset>
         <label>Password <span class="muted small">(generated — you can change it)</span><input name="password" required minlength="8" value="${randomPassword()}"></label>
         <button class="btn btn-primary">Create account</button>
       </form>
       <div class="card"><h2>Groups</h2>
-        <table class="tbl"><tbody>${groups.map(g => `<tr><td><b>${esc(g.code)}</b></td><td>${esc(g.label)}</td><td class="small muted">${studs.filter(s => s.group_code === g.code).length} students</td>
+        <table class="tbl"><tbody>${groups.map(g => `<tr><td><b>${esc(g.code)}</b></td><td>${esc(g.label)}</td><td class="small muted">${studs.filter(s => s.group_code === g.code).length} students${tgs.some(t => t.group_code === g.code) ? ` · ${tgs.filter(t => t.group_code === g.code).length} teacher(s)` : ""}</td>
           <td><button class="btn btn-ghost btn-sm" data-delgroup="${esc(g.code)}">Delete</button></td></tr>`).join("")}</tbody></table>
         <form id="grpForm" class="inline-form"><input name="code" placeholder="Code, e.g. NC070" required pattern="[A-Za-z0-9_\\-]{1,32}"><input name="label" placeholder="Label (optional)"><button class="btn btn-sm">Add group</button></form>
       </div>
@@ -190,9 +208,10 @@ export async function showStudents(root, ctx) {
     <section class="card"><h2>Accounts (${studs.length})</h2>
       <div class="scroll-x"><table class="tbl"><thead><tr><th>Name</th><th>Username</th><th>Group</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody>
       ${studs.map(s => `<tr data-id="${s.id}"><td><b>${esc(s.display_name)}</b></td><td><code>${esc(s.username)}</code></td>
-        <td><select data-setgroup="${s.id}">${grpOpts(s.group_code)}</select></td><td>${esc(s.role)}</td>
+        <td>${s.role === "teacher" ? `<span class="small">${esc(tgOf(s.id).join(", ") || "no groups")}</span>` : s.role === "admin" ? "" : `<select data-setgroup="${s.id}">${grpOpts(s.group_code)}</select>`}</td>
+        <td>${esc(s.role)}${s.role === "teacher" ? ` <span class="pill" title="${esc(LEVELS[s.teacher_level] || "")}">${esc(s.teacher_level)}</span>` : ""}</td>
         <td>${s.active ? '<span class="pill pill-good">active</span>' : '<span class="pill">disabled</span>'}</td>
-        <td class="actions"><a class="btn btn-ghost btn-sm" href="#/stats/${s.id}">Stats</a>
+        <td class="actions">${s.role === "teacher" ? `<button class="btn btn-ghost btn-sm" data-act="teacher">Groups &amp; level</button>` : `<a class="btn btn-ghost btn-sm" href="#/stats/${s.id}">Stats</a>`}
           <button class="btn btn-ghost btn-sm" data-act="rename">Rename</button>
           <button class="btn btn-ghost btn-sm" data-act="reset">New password</button>
           <button class="btn btn-ghost btn-sm" data-act="toggle">${s.active ? "Disable" : "Enable"}</button>
@@ -200,16 +219,27 @@ export async function showStudents(root, ctx) {
       </tbody></table></div></section>`;
 
   const showCreds = (name, username, password) => modal({ title: `Login details for ${name}`,
-    body: `<p>Give these to the student (they can change the password under “Account”). <b>This password will not be shown again.</b></p>
+    body: `<p>Give these to the account owner (they can change the password under “Account”). <b>This password will not be shown again.</b></p>
       <div class="creds"><div>Website: <code>${esc(location.origin + location.pathname)}</code></div><div>Username: <code>${esc(username)}</code></div><div>Password: <code>${esc(password)}</code></div></div>`,
     buttons: [{ label: "Copy", value: () => { navigator.clipboard?.writeText(`${location.origin + location.pathname}\nUsername: ${username}\nPassword: ${password}`); return true; } }, { label: "Done", value: true, kind: "primary" }] });
 
   $("#addForm", body).onsubmit = async e => {
     e.preventDefault(); const f = e.target; const btn = f.querySelector("button"); btn.disabled = true;
-    const p = { action: "create", display_name: f.display_name.value.trim(), username: f.username.value.trim().toLowerCase(), group_code: f.group_code.value || null, password: f.password.value };
-    try { await api.adminUsers(p); await showCreds(p.display_name, p.username, p.password); showStudents(root, ctx); }
-    catch (err) { toast(err.message, "error"); btn.disabled = false; }
+    const teacher = f.kind.value === "teacher";
+    const tg = $$('[name="tgrp"]:checked', f).map(x => x.value);
+    const p = { action: "create", display_name: f.display_name.value.trim(), username: f.username.value.trim().toLowerCase(), group_code: teacher ? null : f.group_code.value || null, password: f.password.value };
+    let created = null;
+    try {
+      created = await api.adminUsers(p);
+      if (teacher) await api.setTeacher(created.id, f.level.value, tg);
+      await showCreds(p.display_name, p.username, p.password); showStudents(root, ctx);
+    } catch (err) {
+      toast(created && teacher ? `The account was created, but as a student without a group (${err.message}). Delete it and try again.` : err.message, "error");
+      if (created) showStudents(root, ctx); else btn.disabled = false;
+    }
   };
+  const addF = $("#addForm", body);
+  addF.kind.onchange = () => $$("[data-for]", addF).forEach(el => (el.hidden = el.dataset.for !== addF.kind.value));
   $("#grpForm", body).onsubmit = async e => {
     e.preventDefault(); const f = e.target;
     try { await api.saveGroup({ code: f.code.value.trim(), label: f.label.value.trim() || f.code.value.trim() }); showStudents(root, ctx); } catch (err) { toast(err.message, "error"); }
@@ -229,7 +259,13 @@ export async function showStudents(root, ctx) {
     const b = e.target.closest("[data-act]"); if (!b) return;
     const s = studs.find(x => x.id === b.closest("tr").dataset.id);
     try {
-      if (b.dataset.act === "reset") {
+      if (b.dataset.act === "teacher") {
+        const res = await modal({ title: `${s.display_name} — teacher access`,
+          body: `<div class="form"><label>Teacher level<select id="tl">${levelOpts(s.teacher_level)}</select></label><fieldset id="tgf"><legend>Groups they can see</legend>${grpChecks(tgOf(s.id))}</fieldset>
+            <p class="muted small">They see every student currently in these groups, with all their results. Teachers can't change anything.</p></div>`,
+          buttons: [{ label: "Cancel", value: null }, { label: "Save", kind: "primary", value: box => ({ level: $("#tl", box).value, groups: $$('[name="tgrp"]:checked', box).map(x => x.value) }) }] });
+        if (res) { await api.setTeacher(s.id, res.level, res.groups); toast("Saved", "good"); showStudents(root, ctx); }
+      } else if (b.dataset.act === "reset") {
         const pw = randomPassword();
         if (!(await modal({ title: `New password for ${s.display_name}?`, body: "<p>The old password stops working immediately.</p>", buttons: [{ label: "Cancel", value: false }, { label: "Set new password", value: true, kind: "primary" }] }))) return;
         await api.adminUsers({ action: "reset_password", user_id: s.id, password: pw });
@@ -251,22 +287,23 @@ export async function showStudents(root, ctx) {
 }
 
 export async function showMocks(root, ctx) {
-  const body = frame(root, "mocks");
+  const body = frame(root, "mocks", ctx);
   const mocks = await api.mocks();
   const atts = await api.allAttempts();
+  const adm = isAdm(ctx);
   body.innerHTML = `
-    <div class="toolbar"><span class="grow"></span><a class="btn btn-primary" href="#/admin/mock-edit/new">New mock</a></div>
+    ${adm ? `<div class="toolbar"><span class="grow"></span><a class="btn btn-primary" href="#/admin/mock-edit/new">New mock</a></div>` : `<p class="muted small">Published mocks for your groups. Results show your students only.</p>`}
     <section class="card">${mocks.length ? `<table class="tbl"><thead><tr><th>Mock</th><th>Qs</th><th>Time</th><th>Groups</th><th>Status</th><th>Taken</th><th></th></tr></thead><tbody>
       ${mocks.map(m => `<tr><td><b>${esc(m.title)}</b><div class="small muted">${esc(m.description)}</div></td><td>${m.question_ids.length}</td><td>${fmtDur(m.time_limit_sec * 1000, { sec: false })}</td>
         <td class="small">${m.group_codes ? esc(m.group_codes.join(", ")) : "everyone"}</td>
         <td>${m.published ? '<span class="pill pill-good">published</span>' : '<span class="pill">draft</span>'}${m.reserve_questions ? ' <span class="pill" title="Questions are kept out of Practice">reserved</span>' : ""}</td>
         <td>${atts.filter(a => a.mock_id === m.id && a.status === "submitted").length}</td>
-        <td class="actions"><a class="btn btn-sm" href="#/admin/mock/${m.id}">Results</a> <a class="btn btn-ghost btn-sm" href="#/admin/mock-edit/${m.id}">Edit</a></td></tr>`).join("")}
-      </tbody></table>` : `<p class="muted">No mocks yet. Create one to give students a full timed test.</p>`}</section>`;
+        <td class="actions"><a class="btn btn-sm" href="${P(ctx)}/mock/${m.id}">Results</a>${adm ? ` <a class="btn btn-ghost btn-sm" href="#/admin/mock-edit/${m.id}">Edit</a>` : ""}</td></tr>`).join("")}
+      </tbody></table>` : `<p class="muted">${adm ? "No mocks yet. Create one to give students a full timed test." : "No published mocks for your groups yet."}</p>`}</section>`;
 }
 
 export async function showMockEdit(root, id, ctx) {
-  const body = frame(root, "mocks");
+  const body = frame(root, "mocks", ctx);
   const { groups, questions, qById } = await base(true);
   const L = ctx.labels;
   const active = questions.filter(q => q.active);
@@ -370,7 +407,7 @@ export async function showMockEdit(root, id, ctx) {
 }
 
 export async function showQuestions(root, ctx) {
-  const body = frame(root, "questions");
+  const body = frame(root, "questions", ctx);
   const { questions, qById } = await base(true);
   const { attempts, items } = await api.statsData("*");
   const keys = await api.answerKeys(null);
@@ -426,7 +463,7 @@ function awayMs(events) {
 }
 
 export async function showCleanup(root, ctx) {
-  const body = frame(root, "cleanup");
+  const body = frame(root, "cleanup", ctx);
   const { profiles, qById } = await base(true);
   const pBy = Object.fromEntries(profiles.map(p => [p.id, p]));
   const [{ attempts, items }, allAtt, reports] = await Promise.all([api.statsData("*"), api.allAttempts(), api.reports()]);

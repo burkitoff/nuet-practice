@@ -117,6 +117,12 @@ function createSupabaseApi() {
       if (data && data.error) throw new Error(data.error);
       return data;
     },
+    async myTeacherGroups() {
+      const me = await api.me();
+      return must(await sb.from("teacher_groups").select("group_code").eq("teacher_id", me.id)).map(r => r.group_code);
+    },
+    async teacherGroups() { return must(await sb.from("teacher_groups").select("*")); },
+    async setTeacher(id, level, groups) { must(await sb.rpc("admin_set_teacher", { p_user: id, p_level: level, p_groups: groups })); },
     async updateProfile(id, fields) { must(await sb.from("profiles").update(fields).eq("id", id)); },
     async saveGroup(g) { must(await sb.from("groups").upsert(g)); },
     async deleteGroup(code) { must(await sb.from("groups").delete().eq("code", code)); },
@@ -130,7 +136,9 @@ function createSupabaseApi() {
       return out;
     },
     async answerKeys(ids) {
-      const rows = must(await sb.rpc("admin_answer_keys", { p_ids: ids || null }));
+      const me = await api.me();
+      if (me.role === "teacher" && me.teacher_level !== "full") return {};
+      const rows = must(await sb.rpc(me.role === "teacher" ? "teacher_answer_keys" : "admin_answer_keys", { p_ids: ids || null }));
       return Object.fromEntries(rows.map(r => [r.question_id, r.answer]));
     },
     async saveMock(m) {

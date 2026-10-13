@@ -40,6 +40,7 @@ export async function showHome(root, ctx) {
   const done = attempts.filter(a => a.status === "submitted");
   const used = id => attempts.filter(a => a.mock_id === id).length;
   const visibleMocks = mocks.filter(m => m.published);
+  const teacher = ctx.me.role === "teacher";
   const recentQs = done.reduce((s, a) => s + a.total, 0);
   const recentScore = done.reduce((s, a) => s + (a.score || 0), 0);
 
@@ -50,7 +51,11 @@ export async function showHome(root, ctx) {
       <a class="btn btn-primary" href="#/run/${a.id}">Continue</a></div>`).join("")}</section>` : ""}
 
     <div class="home-grid">
-      <section class="card">
+      ${teacher ? `<section class="card">
+        <h2>Your groups</h2>
+        <p class="muted small">${ctx.myGroups.length ? `You can see the students and results of ${ctx.myGroups.map(esc).join(", ")}.` : "No groups are assigned to your account yet."}</p>
+        <div class="quick"><a class="btn btn-primary" href="#/teach">Class overview</a><a class="btn" href="#/teach/mocks">Mock results</a></div>
+      </section>` : `<section class="card">
         <h2>Mock tests</h2>
         <p class="muted small">Full timed papers in exam conditions. No answers are shown until you submit.</p>
         ${visibleMocks.length ? visibleMocks.map(m => {
@@ -59,7 +64,7 @@ export async function showHome(root, ctx) {
             <div class="muted small">${m.question_ids.length} questions · ${fmtDur(m.time_limit_sec * 1000, { sec: false })}${m.description ? " · " + esc(m.description) : ""}${u ? ` · taken ${u}×` : ""}</div></div>
             ${inprog ? `<a class="btn" href="#/run/${inprog.id}">Continue</a>` : left > 0 ? `<button class="btn btn-primary" data-mock="${m.id}">Start</button>` : `<span class="muted small">done</span>`}</div>`;
         }).join("") : `<p class="muted">No mocks assigned yet.</p>`}
-      </section>
+      </section>`}
       <section class="card">
         <h2>Practice</h2>
         <p class="muted small">Short sets with no time limit. Answer them, press Finish, then see the correct answers.</p>
@@ -135,7 +140,7 @@ export function showAccount(root, ctx) {
   root.innerHTML = `<div class="page narrow">
     <p class="crumbs"><a href="#/">Home</a> › Account</p>
     <h1>Account</h1>
-    <div class="card"><p><b>${esc(ctx.me.display_name)}</b><br><span class="muted">username: ${esc(ctx.me.username)}${ctx.me.group_code ? ` · group ${esc(ctx.me.group_code)}` : ""}</span></p></div>
+    <div class="card"><p><b>${esc(ctx.me.display_name)}</b><br><span class="muted">username: ${esc(ctx.me.username)}${ctx.me.group_code ? ` · group ${esc(ctx.me.group_code)}` : ""}${ctx.me.role === "teacher" ? ` · teacher (${ctx.me.teacher_level === "full" ? "full access" : "results access"})${ctx.myGroups.length ? ` · groups ${ctx.myGroups.map(esc).join(", ")}` : ""}` : ""}</span></p></div>
     <form class="card form" id="pw">
       <h2>Change password</h2>
       <label>New password<input name="p1" type="password" minlength="8" autocomplete="new-password" required></label>

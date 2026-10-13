@@ -39,6 +39,7 @@ kbd { border: 1px solid var(--line-2); border-bottom-width: 2px; border-radius: 
 .btn.is-on { color: var(--warn); border-color: var(--warn); background: var(--warn-bg); }
 input, select, textarea { font: 15px var(--ui); padding: 8px 10px; border: 1px solid var(--line-2); border-radius: 10px; background: var(--surface); color: var(--ink); max-width: 100%; }
 input:focus, select:focus, .btn:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+[hidden] { display: none !important; }
 .form label { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; font-weight: 500; font-size: 14px; }
 .form label.check, label.check { flex-direction: row; align-items: center; gap: 8px; font-weight: 400; margin-bottom: 6px; }
 fieldset { border: 1px solid var(--line); border-radius: 8px; margin: 0 0 12px; padding: 8px 12px; } legend { font-weight: 500; font-size: 14px; padding: 0 4px; }

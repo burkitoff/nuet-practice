@@ -15,7 +15,7 @@ let shownHash = location.hash, restoring = false;
 function go(hash) { if (location.hash === hash) route(); else location.hash = hash; }
 
 function shell(active) {
-  const admin = ctx.me.role === "admin";
+  const admin = ctx.me.role === "admin", teacher = ctx.me.role === "teacher";
   app.innerHTML = `
   <header class="topbar">
     <a class="brand" href="#/" aria-label="${esc(CONFIG.APP_NAME)} home"><img src="img/logo.svg" alt="${esc(CONFIG.APP_NAME)}" width="125" height="36"></a>
@@ -23,7 +23,8 @@ function shell(active) {
       <a href="#/" class="${active === "home" ? "on" : ""}">Home</a>
       <a href="#/practice" class="${active === "practice" ? "on" : ""}">Practice</a>
       <a href="#/stats" class="${active === "stats" ? "on" : ""}">My stats</a>
-      ${admin ? `<a href="#/admin/class" class="${active === "admin" ? "on" : ""}">Teacher</a>` : ""}
+      ${admin ? `<a href="#/admin/class" class="${active === "admin" ? "on" : ""}">Admin</a>` : ""}
+      ${teacher ? `<a href="#/teach" class="${active === "admin" ? "on" : ""}">My groups</a>` : ""}
     </nav>
     <div class="who"><a href="#/account" title="Account">${esc(ctx.me.display_name || ctx.me.username)}</a>
       <button class="btn btn-ghost btn-sm" id="logout">Log out</button></div>
@@ -46,19 +47,19 @@ async function route() {
   current = null;
   const parts = (location.hash.replace(/^#\/?/, "") || "").split("/");
   const [p0, p1, p2] = parts;
-  const admin = ctx.me.role === "admin";
+  const admin = ctx.me.role === "admin", teacher = ctx.me.role === "teacher";
   try {
     if (p0 === "run" && p1) {
       app.innerHTML = `<div id="view" class="fullscreen"></div>`;
       current = await runAttempt($("#view"), p1, ctx);
       return;
     }
-    const tab = p0 === "admin" ? "admin" : p0 === "practice" ? "practice" : p0 === "stats" ? "stats" : p0 === "" ? "home" : "";
+    const tab = p0 === "admin" || p0 === "teach" ? "admin" : p0 === "practice" ? "practice" : p0 === "stats" ? "stats" : p0 === "" ? "home" : "";
     const view = shell(tab);
     if (!p0) await showHome(view, ctx);
     else if (p0 === "practice") await showPractice(view, ctx);
     else if (p0 === "attempt" && p1) await showAttempt(view, p1, ctx);
-    else if (p0 === "stats") await showStats(view, p1 && admin ? p1 : ctx.me.id, ctx);
+    else if (p0 === "stats") await showStats(view, p1 && (admin || teacher) ? p1 : ctx.me.id, ctx);
     else if (p0 === "account") showAccount(view, ctx);
     else if (p0 === "admin" && admin) {
       if (!p1 || p1 === "class") await showClass(view, ctx);
@@ -68,6 +69,11 @@ async function route() {
       else if (p1 === "mock-edit" && p2) await showMockEdit(view, p2, ctx);
       else if (p1 === "questions") await showQuestions(view, ctx);
       else if (p1 === "cleanup") await showCleanup(view, ctx);
+    } else if (p0 === "teach" && teacher) {
+      if (!p1 || p1 === "class") await showClass(view, ctx);
+      else if (p1 === "mocks") await showMocks(view, ctx);
+      else if (p1 === "mock" && p2) await showMockResults(view, p2, ctx);
+      else view.innerHTML = `<div class="page"><h1>Not found</h1><p><a href="#/teach">Back</a></p></div>`;
     } else view.innerHTML = `<div class="page"><h1>Not found</h1><p><a href="#/">Go home</a></p></div>`;
   } catch (e) {
     console.error(e);
@@ -80,6 +86,7 @@ async function route() {
 async function afterLogin() {
   ctx.me = await api.me(true);
   if (!ctx.me) throw new Error("Your account has no profile yet. Ask your teacher.");
+  ctx.myGroups = ctx.me.role === "teacher" ? await api.myTeacherGroups() : null;
   if (!ctx.me.active) { await api.signOut(); throw new Error("This account is disabled. Ask your teacher."); }
   ctx.taxonomy = await api.taxonomy();
   ctx.labels = Object.fromEntries(ctx.taxonomy.map(t => [t.code, t.label]));
