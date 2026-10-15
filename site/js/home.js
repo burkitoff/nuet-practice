@@ -32,7 +32,7 @@ const T = {
     "rev.official": "Official result",
     "rev.open": "Open screenshot",
     "rev.close": "Close",
-    "join.title": "Sign up for a free diagnostic",
+    "join.title": "Sign up for a <mark>free</mark> diagnostic",
     "join.lead": "We'll find where you lose points and what to work on first.",
     "join.tg": "Message us on Telegram",
     "join.tgnote": "Opens a chat with the teacher.",
@@ -71,7 +71,7 @@ const T = {
     "rev.official": "Официальный результат",
     "rev.open": "Открыть скриншот",
     "rev.close": "Закрыть",
-    "join.title": "Запишитесь на бесплатную диагностику",
+    "join.title": "Запишитесь на <mark>бесплатную</mark> диагностику",
     "join.lead": "Мы найдём, где вы теряете баллы, и с чего начать работу.",
     "join.tg": "Написать в Telegram",
     "join.tgnote": "Откроется чат с преподавателем.",
@@ -110,6 +110,7 @@ function applyLang(next) {
   document.documentElement.lang = lang;
   document.title = t("title");
   $$("[data-i18n]").forEach(el => { el.textContent = t(el.dataset.i18n); });
+  $$("[data-i18n-html]").forEach(el => { el.innerHTML = t(el.dataset.i18nHtml); });
   $$("[data-i18n-label]").forEach(el => el.setAttribute("aria-label", t(el.dataset.i18nLabel)));
   $$(".lang button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.lang === lang)));
   if (signedIn) { $("#enter").textContent = t("gate.continue"); $("#enterNote").textContent = t("gate.noteIn"); }
@@ -138,7 +139,7 @@ function buildRain() {
   for (let i = 0; i < n; i++) {
     const x = ((i + .5) / n) * 100 + (Math.sin(i * 12.9898) * 43758.5453 % 1) * 6;
     const s = .55 + (Math.abs(Math.sin(i * 4.1)) * .6);
-    const d = 9 + Math.abs(Math.sin(i * 7.7)) * 7;
+    const d = 6 + Math.abs(Math.sin(i * 7.7)) * 4;
     html += `<i style="--x:${x.toFixed(1)}%;--s:${s.toFixed(2)};--d:${d.toFixed(1)}s;--delay:${(-d * ((i * .37) % 1)).toFixed(1)}s"><svg viewBox="0 0 120 24"><use href="#i-arrow"/></svg></i>`;
   }
   box.innerHTML = html;
