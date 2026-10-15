@@ -138,8 +138,14 @@ function createSupabaseApi() {
     async answerKeys(ids) {
       const me = await api.me();
       if (me.role === "teacher" && me.teacher_level !== "full") return {};
-      const rows = must(await sb.rpc(me.role === "teacher" ? "teacher_answer_keys" : "admin_answer_keys", { p_ids: ids || null }));
-      return Object.fromEntries(rows.map(r => [r.question_id, r.answer]));
+      const fn = me.role === "teacher" ? "teacher_answer_keys" : "admin_answer_keys";
+      const out = {};
+      for (let from = 0; ; from += 1000) {
+        const page = must(await sb.rpc(fn, { p_ids: ids || null }).order("question_id").range(from, from + 999));
+        for (const r of page) out[r.question_id] = r.answer;
+        if (page.length < 1000) break;
+      }
+      return out;
     },
     async saveMock(m) {
       const row = { ...m };

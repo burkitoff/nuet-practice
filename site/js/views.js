@@ -5,7 +5,7 @@ import { $, esc, fmtDur, fmtDate, pct, fmtPct, toast, modal } from "./util.js";
 export function showLogin(root, { onLogin }) {
   root.innerHTML = `
   <div class="login-wrap"><form class="card login" id="loginForm" autocomplete="on">
-    <h1 class="sr-only">${esc(CONFIG.APP_NAME)}</h1><img class="login-logo" src="img/logo-stacked.svg" alt="" width="150" height="153">
+    <h1 class="sr-only">${esc(CONFIG.APP_NAME)}</h1><img class="login-logo" src="/img/logo-stacked.svg" alt="" width="150" height="153">
     <p class="tagline">Train your aim.</p>
     <p class="muted">Log in with the username and password your teacher gave you.</p>
     <label>Username<input name="u" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
@@ -35,7 +35,6 @@ export async function showHome(root, ctx) {
   root.innerHTML = `<div class="loading">Loading…</div>`;
   await api.finalizeExpired().catch(() => {});
   const [mocks, attempts] = await Promise.all([api.mocks(), api.myAttempts()]);
-  // unfinished practice sets are thrown away when left, so only mocks show up here
   const open = attempts.filter(a => a.status === "in_progress" && a.mode === "mock");
   const done = attempts.filter(a => a.status === "submitted");
   const used = id => attempts.filter(a => a.mock_id === id).length;

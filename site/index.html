@@ -2,21 +2,147 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="referrer" content="no-referrer">
-  <meta name="robots" content="noindex, nofollow">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
-  <title>NUET Oqy</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
+  <title>NUET Oqy — NUET preparation</title>
+  <meta name="description" content="NUET preparation: a free diagnostic, a method for every question type and progress you can see.">
+  <meta property="og:title" content="NUET Oqy — NUET preparation">
+  <meta property="og:description" content="How do you get a high score on the NUET? Start with a free diagnostic.">
+  <meta property="og:type" content="website">
   <link rel="icon" href="img/icon.svg" type="image/svg+xml">
   <meta name="theme-color" content="#F5F0E6">
   <link rel="preload" href="fonts/nunito-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="css/app.css">
-  <script src="vendor/supabase-2.117.2.js"></script>
-  <script type="module" src="js/app.js"></script>
+  <link rel="stylesheet" href="css/home.css">
+  <script src="js/fwd.js"></script>
+  <script type="module" src="js/home.js"></script>
 </head>
 <body>
-  <div id="app"><div class="loading">Loading…</div></div>
-  <noscript>This app needs JavaScript.</noscript>
+  <svg width="0" height="0" class="defs" aria-hidden="true" focusable="false">
+    <symbol id="i-arrow" viewBox="0 0 120 24">
+      <path d="M6 12H112" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+      <path d="M104 5L114 12L104 19" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M8 12C14 11 22 5 28 4L26 12Z M8 12C14 13 22 19 28 20L26 12Z" fill="currentColor"/>
+    </symbol>
+    <symbol id="i-hit" viewBox="0 0 48 48">
+      <circle cx="26" cy="26" r="19" fill="none" stroke="#F5F0E6" stroke-width="2.6" opacity=".9"/>
+      <circle cx="26" cy="26" r="12" fill="none" stroke="#F5F0E6" stroke-width="1.8" opacity=".45"/>
+      <circle cx="26" cy="26" r="6" fill="#BFD0BB"/>
+      <path d="M4 4L25 25" stroke="#F5F0E6" stroke-width="2.6" stroke-linecap="round"/>
+      <path d="M4 4L12 6M4 4L6 12" stroke="#BFD0BB" stroke-width="2.6" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-ring" viewBox="0 0 32 32">
+      <circle cx="16" cy="16" r="13" fill="none" stroke="#1E2430" stroke-width="2.4"/>
+      <circle cx="16" cy="16" r="8" fill="none" stroke="#B5B3AF" stroke-width="1.6"/>
+      <circle cx="16" cy="16" r="4" fill="#BFD0BB" stroke="#1E2430" stroke-width="1.6"/>
+    </symbol>
+  </svg>
+
+  <header class="bar" id="bar">
+    <a class="bar-brand" href="#top" aria-label="NUET Oqy"><img src="img/logo.svg" alt="NUET Oqy" width="110" height="32"></a>
+    <div class="bar-right">
+      <div class="lang" role="group" aria-label="Language">
+        <button type="button" data-lang="en">EN</button><button type="button" data-lang="ru">RU</button>
+      </div>
+      <a class="btn btn-sm bar-login" href="/app/" data-i18n="nav.login">Log in</a>
+    </div>
+  </header>
+
+  <main>
+    <section class="gate" id="top">
+      <svg class="scape" viewBox="0 0 1600 560" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+        <circle cx="1330" cy="206" r="58" fill="#F0E7D5"/>
+        <path d="M0 330L90 296L170 312L262 250L330 268L410 214L480 246L560 226L650 262L740 238L820 270L905 232L980 252L1060 206L1140 236L1225 214L1300 248L1390 226L1470 258L1540 238L1600 250V560H0Z" fill="#E4E3DD"/>
+        <path d="M0 372C130 340 250 330 380 350S640 392 790 368S1060 318 1200 330S1460 372 1600 352V560H0Z" fill="#DFE3D6"/>
+        <path d="M0 430C170 404 330 396 520 414S860 452 1040 432S1380 394 1600 414V560H0Z" fill="#E8E2D4"/>
+        <path d="M0 492C220 470 420 468 640 482S1060 508 1280 490S1500 470 1600 476V560H0Z" fill="#ECE6D9"/>
+        <g fill="none" stroke="#C6C3BB" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M1180 150L1191 158L1202 150"/><path d="M1220 132L1228 138L1236 132"/><path d="M1150 176L1158 182L1166 176"/></g>
+      </svg>
+      <div class="gate-in">
+        <h1 class="sr-only">NUET Oqy</h1>
+        <img class="gate-logo" src="img/logo-stacked.svg" alt="" width="150" height="153">
+        <p class="gate-tag" data-i18n="gate.tag">Train your aim.</p>
+        <p class="gate-sub" data-i18n="gate.sub">The NUET preparation platform</p>
+        <a class="btn btn-primary btn-lg" id="enter" href="/app/" data-i18n="gate.login">Log in to the platform</a>
+        <p class="gate-note" id="enterNote" data-i18n="gate.note">Your teacher gives you your account.</p>
+      </div>
+      <a class="discover" href="#how"><span data-i18n="gate.discover">New here? Discover NUET Oqy</span><i aria-hidden="true"></i></a>
+    </section>
+
+    <section class="how" id="how">
+      <div class="how-art" aria-hidden="true">
+        <svg viewBox="0 0 640 720" preserveAspectRatio="xMidYMid meet">
+          <ellipse cx="400" cy="686" rx="220" ry="12" fill="#1E2430" opacity=".06"/>
+          <path d="M0 683H640" stroke="#D9D3C8" stroke-width="2"/>
+          <g stroke="#5D6474" stroke-width="11" stroke-linecap="round" fill="none">
+            <path d="M418 383L545 683" opacity=".6"/>
+            <path d="M326 422L242 683M434 422L479 683M263 602H465"/>
+          </g>
+          <path d="M380 61H444A122.6 219 0 0 1 444 499H380Z" fill="#C5C2BD" stroke="#1E2430" stroke-width="4"/>
+          <ellipse cx="380" cy="280" rx="122.6" ry="219" fill="#D8D5CD" stroke="#1E2430" stroke-width="4"/>
+          <ellipse cx="380" cy="280" rx="111.8" ry="200" fill="#FBF8F4" stroke="#1E2430" stroke-width="3.6"/>
+          <ellipse cx="380" cy="280" rx="89.4" ry="160" fill="#FBF8F4" stroke="#B5B3AF" stroke-width="1.8"/>
+          <ellipse cx="380" cy="280" rx="67.1" ry="120" fill="#ECE8DE" stroke="#B5B3AF" stroke-width="1.8"/>
+          <ellipse cx="380" cy="280" rx="44.7" ry="80" fill="#ECE8DE" stroke="#B5B3AF" stroke-width="1.8"/>
+          <ellipse cx="380" cy="280" rx="22.4" ry="40" fill="#BFD0BB" stroke="#1E2430" stroke-width="2.2"/>
+          <ellipse cx="380" cy="280" rx="9" ry="16" fill="none" stroke="#1E2430" stroke-width="1.2" opacity=".5"/>
+          <ellipse cx="383" cy="286" rx="3" ry="5" fill="#1E2430" opacity=".45"/>
+          <g transform="translate(383 286) rotate(188) scale(1 -1)">
+            <path d="M0 0H232" stroke="#1E2430" stroke-width="6" stroke-linecap="round"/>
+            <path d="M168 -3C186 -4 204 -12 220 -13L223 -3Z" fill="#ACBBAA" stroke="#1E2430" stroke-width="1.6" stroke-linejoin="round"/>
+            <path d="M160 0C180 2 200 20 216 22L219 0Z" fill="#8C998F" stroke="#1E2430" stroke-width="1.6" stroke-linejoin="round"/>
+            <path d="M174 0C192 -2 210 -20 226 -22L229 0Z" fill="#BFD0BB" stroke="#1E2430" stroke-width="1.6" stroke-linejoin="round"/>
+            <path d="M231 0H238" stroke="#1E2430" stroke-width="8" stroke-linecap="round"/>
+          </g>
+        </svg>
+      </div>
+      <div class="how-copy">
+        <h2 data-i18n="how.title">How do you get a high score on the NUET?</h2>
+        <p class="lead" data-i18n="how.lead">Three things. We do all of them with every student.</p>
+        <ol class="points">
+          <li><svg aria-hidden="true"><use href="#i-ring"/></svg><div><h3 data-i18n="p1.t">Know exactly where you lose points</h3><p data-i18n="p1.d">A diagnostic shows your weak question types and where your minutes go.</p></div></li>
+          <li><svg aria-hidden="true"><use href="#i-ring"/></svg><div><h3 data-i18n="p2.t">A method for every question type</h3><p data-i18n="p2.d">How to think through each one — not just more practice.</p></div></li>
+          <li><svg aria-hidden="true"><use href="#i-ring"/></svg><div><h3 data-i18n="p3.t">Progress you can see</h3><p data-i18n="p3.d">Every mistake is reviewed and tracked on the platform.</p></div></li>
+        </ol>
+        <a class="btn btn-primary" href="#join" data-i18n="how.cta">Get a free diagnostic</a>
+      </div>
+    </section>
+
+    <section class="reviews" id="reviews">
+      <div class="rain" aria-hidden="true"></div>
+      <div class="reviews-head">
+        <h2 data-i18n="rev.title">What our students say</h2>
+        <p class="lead" data-i18n="rev.sub">About 90% of our students get into NU. The other 10%? They chose to study abroad.</p>
+      </div>
+      <div class="carousel" id="carousel" hidden>
+        <ul class="track" id="track" aria-roledescription="carousel"></ul>
+        <div class="car-nav">
+          <button type="button" class="car-btn" id="prev" data-i18n-label="rev.prev" aria-label="Previous review"><span aria-hidden="true">←</span></button>
+          <button type="button" class="car-btn" id="next" data-i18n-label="rev.next" aria-label="Next review"><span aria-hidden="true">→</span></button>
+        </div>
+      </div>
+    </section>
+
+    <section class="join" id="join">
+      <div class="join-copy">
+        <h2 data-i18n="join.title">Sign up for a free diagnostic</h2>
+        <p class="lead" data-i18n="join.lead">We'll find where you lose points and what to work on first.</p>
+        <a class="btn btn-primary btn-lg" id="tgDm" href="https://t.me/burkitoff" rel="noopener" data-i18n="join.tg">Message us on Telegram</a>
+        <p class="hint" data-i18n="join.tgnote">Opens a chat with the teacher.</p>
+      </div>
+      <footer class="foot">
+        <img src="img/logo.svg" alt="NUET Oqy" width="96" height="28">
+        <nav>
+          <a href="https://t.me/nuetoqy" rel="noopener" data-i18n="foot.tg">Telegram channel</a>
+          <a href="https://instagram.com/nuetoqy" rel="noopener">Instagram</a>
+          <a href="/app/" data-i18n="foot.login">Platform login</a>
+        </nav>
+        <p>© 2026 NUET Oqy</p>
+      </footer>
+    </section>
+  </main>
+
+
+  <dialog class="lightbox" id="lightbox"><img alt=""><button type="button" class="lb-close" data-i18n-label="rev.close" aria-label="Close">×</button></dialog>
 </body>
 </html>
-

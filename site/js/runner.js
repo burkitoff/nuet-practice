@@ -279,8 +279,6 @@ export async function runAttempt(root, attemptId, { go }) {
     window.removeEventListener("beforeunload", onUnload);
   }
 
-  // Practice is optional: leaving it throws it away (answers, events and all).
-  // If the student just closes the tab, the server throws it away when they start the next practice.
   let leavePrompt = null;
   function confirmLeave() {
     if (finished || isMock) return Promise.resolve(true);
@@ -292,7 +290,7 @@ export async function runAttempt(root, attemptId, { go }) {
       leavePrompt = null;
       if (!ok || finished) return !!ok || finished;
       finished = true; cleanup(); dropBackup(attemptId);
-      try { await api.discardPractice(attemptId); } catch (_) { /* offline: removed when the next practice starts */ }
+      try { await api.discardPractice(attemptId); } catch (_) {}
       return true;
     });
     return leavePrompt;

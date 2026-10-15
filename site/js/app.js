@@ -18,7 +18,7 @@ function shell(active) {
   const admin = ctx.me.role === "admin", teacher = ctx.me.role === "teacher";
   app.innerHTML = `
   <header class="topbar">
-    <a class="brand" href="#/" aria-label="${esc(CONFIG.APP_NAME)} home"><img src="img/logo.svg" alt="${esc(CONFIG.APP_NAME)}" width="125" height="36"></a>
+    <a class="brand" href="#/" aria-label="${esc(CONFIG.APP_NAME)} home"><img src="/img/logo.svg" alt="${esc(CONFIG.APP_NAME)}" width="125" height="36"></a>
     <nav>
       <a href="#/" class="${active === "home" ? "on" : ""}">Home</a>
       <a href="#/practice" class="${active === "practice" ? "on" : ""}">Practice</a>
@@ -37,7 +37,6 @@ function shell(active) {
 async function route() {
   if (!ctx.me) return;
   if (restoring && location.hash === shownHash) { restoring = false; return; }
-  // A page can refuse to be left (e.g. a practice asks "leave without saving?").
   if (current?.confirmLeave && location.hash !== shownHash && !(await current.confirmLeave())) {
     if (location.hash !== shownHash) { restoring = true; location.hash = shownHash; }
     return;

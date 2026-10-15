@@ -102,8 +102,6 @@ export function awayGaps(items) {
 
 export function timeline(items) {
   const segs = [], marks = [];
-  // Older practice attempts lost the "out" event of every checked question. A bar with no
-  // "out" ends when the next question was opened (or at its own last event if none was).
   const ins = items.flatMap(it => (it.events || []).filter(e => e.e === "in").map(e => e.t)).sort((a, b) => a - b);
   const closeAt = (t0, last) => ins.find(t => t > t0) ?? Math.max(t0, last ?? t0);
   for (let it of items) {
@@ -111,7 +109,6 @@ export function timeline(items) {
     for (const e of it.events || []) {
       if (e.e === "in") { if (open != null) segs.push({ pos: it.position, t0: open, t1: closeAt(open, last) }); open = e.t; }
       else if (e.e === "out" && open != null) { segs.push({ pos: it.position, t0: open, t1: e.t }); open = null; }
-      // an answer that was never graded (old practice question that wasn't checked) gets no dot
       else if (e.e === "sel" && it.locked !== false) marks.push({ pos: it.position, t: e.t, v: e.v, correct: it.correct_answer ? e.v === it.correct_answer : null });
       last = e.t;
     }

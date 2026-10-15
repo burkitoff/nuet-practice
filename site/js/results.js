@@ -25,7 +25,6 @@ export async function showAttempt(root, id, ctx) {
   const isAdmin = ctx.me.role === "admin";
   const isTeacher = ctx.me.role === "teacher" && a.user_id !== ctx.me.id;
   const staff = isAdmin || isTeacher;
-  // a 'full' teacher sees the keys even before they are released to the student
   let unreleased = false, items = rawItems;
   if (isTeacher && ctx.me.teacher_level === "full" && rawItems.some(i => i.locked && !i.correct_answer)) {
     const keys = await api.answerKeys(a.question_ids);
