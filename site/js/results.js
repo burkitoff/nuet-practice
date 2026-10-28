@@ -39,7 +39,7 @@ export async function showAttempt(root, id, ctx) {
   const s = summarize(ds);
   const tgt = targetMs(a);
   const used = ds.reduce((x, d) => x + d.time_ms, 0);
-  const isMock = a.mode === "mock";
+  const isMock = a.mode === "mock", paper = !!a.paper;
   const reveal = ds.some(d => d.correct_answer);
   const L = ctx.labels;
   let owner = "";
@@ -57,7 +57,7 @@ export async function showAttempt(root, id, ctx) {
     <div class="result-head card">
       <div>
         <h1>${esc(a.title || (isMock ? "Mock" : "Practice"))}</h1>
-        <p class="muted">${fmtDate(a.started_at)}${a.auto_submitted ? " · <b>submitted automatically</b> (time ran out)" : ""}</p>
+        <p class="muted">${fmtDate(a.started_at, !paper)}${paper ? ' · <span class="pill">paper mock</span> answers entered by your teacher; no timing' : ""}${a.auto_submitted ? " · <b>submitted automatically</b> (time ran out)" : ""}</p>
         ${unreleased ? `<p class="note">Correct answers shown here are <b>not released to the student yet</b>.</p>` : ""}
         ${a.excluded ? `<p class="note">Your teacher has left this attempt out of your statistics${a.admin_note ? `: ${esc(a.admin_note)}` : ""}.</p>` : ""}
         ${!a.excluded && rows.some(d => d.isExcluded) ? `<p class="note">${rows.filter(d => d.isExcluded).length} question(s) are not counted in the statistics (set by your teacher).</p>` : ""}
@@ -67,7 +67,7 @@ export async function showAttempt(root, id, ctx) {
       <div class="bigscore"><span>${a.score ?? 0}</span>/<small>${a.total}</small><div class="muted">${fmtPct(pct(a.score, a.total))}</div></div>
     </div>
 
-    <div class="tiles">
+    ${paper ? `<div class="tiles"><div class="tile"><b>${s.correct}</b><span>correct</span></div><div class="tile"><b>${s.n - s.correct - s.blanks}</b><span>wrong</span></div><div class="tile"><b>${s.blanks}</b><span>left blank</span></div></div>` : `<div class="tiles">
       <div class="tile"><b>${fmtDur(used)}</b><span>time on questions${a.time_limit_sec ? ` of ${fmtDur(a.time_limit_sec * 1000)}` : ""}</span></div>
       <div class="tile"><b>${fmtDur(s.avgMs)}</b><span>average per question (target ${fmtDur(tgt)})</span></div>
       <div class="tile"><b>${s.blanks}</b><span>left blank</span></div>
@@ -75,11 +75,11 @@ export async function showAttempt(root, id, ctx) {
       <div class="tile"><b>${s.stuck}</b><span>stuck (&gt; ${fmtDur(tgt * 2)})</span></div>
       <div class="tile"><b>${reveal ? `${s.wr} / ${s.rw}` : s.changed}</b><span>${reveal ? "changes wrong→right / right→wrong" : "answers changed"}</span></div>
       ${a.hidden_ms > 5000 ? `<div class="tile"><b>${fmtDur(a.hidden_ms)}</b><span>away from the tab</span></div>` : ""}
-    </div>
+    </div>`}
 
     ${ds.length >= 5 ? `<section class="card"><h2>What this attempt shows</h2><ul class="insights">${insights(ds, L).map(i => `<li class="ins-${i.kind}">${esc(i.text)}</li>`).join("")}</ul></section>` : ""}
 
-    <section class="card">
+    ${paper ? "" : `<section class="card">
       <h2>Your path through the ${isMock ? "test" : "set"}</h2>
       <p class="muted small">Each dark bar is the time a question was open; dots are answer choices (<span class="c-good">●</span> right, <span class="c-bad">●</span> wrong${!reveal && isMock ? ", grey until your teacher releases the answers" : ""}). ${isMock ? "The dashed line is an even pace; the red line is the time limit." : "Breaks where you were away are squeezed and marked “away”; the axis counts active time only."}</p>
       <div class="chart-wrap">${timelineChart(timeline(items), { total: Math.max(a.question_ids?.length || 0, ...items.map(i => i.position)), limitMs: a.time_limit_sec ? a.time_limit_sec * 1000 : null })}</div>
@@ -88,7 +88,7 @@ export async function showAttempt(root, id, ctx) {
     <section class="card">
       <h2>Time per question</h2>
       <div class="chart-wrap">${timeBars(ds, { targetMs: tgt })}</div>
-    </section>
+    </section>`}
 
     <section class="card">
       <h2>By question type</h2>

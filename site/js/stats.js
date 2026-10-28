@@ -54,7 +54,7 @@ export async function showStats(root, userId, ctx) {
         <div class="chart-wrap">${lineChart(trend.map((t, i) => ({ v: t.scorePct ?? 0, x: fmtDate(t.date, false), title: t.attempt.title })))}</div>
         <table class="tbl"><thead><tr><th>Date</th><th>Mock</th><th>Score</th><th>Time used</th><th>Blanks</th><th>Rushed</th><th>Stuck</th><th></th></tr></thead><tbody>
         ${trend.slice().reverse().map(t => `<tr><td>${fmtDate(t.date)}</td><td>${esc(t.attempt.title)}</td><td><b>${t.attempt.score}/${t.attempt.total}</b> <span class="muted">${fmtPct(t.scorePct)}</span></td>
-          <td>${fmtDur(t.usedMs)}${t.attempt.time_limit_sec ? ` / ${fmtDur(t.attempt.time_limit_sec * 1000)}` : ""}${t.attempt.auto_submitted ? ' <span class="pill pill-warn">timed out</span>' : ""}</td>
+          <td>${t.attempt.paper ? '<span class="pill">paper</span>' : `${fmtDur(t.usedMs)}${t.attempt.time_limit_sec ? ` / ${fmtDur(t.attempt.time_limit_sec * 1000)}` : ""}${t.attempt.auto_submitted ? ' <span class="pill pill-warn">timed out</span>' : ""}`}</td>
           <td>${t.blanks || ""}</td><td>${t.rushed || ""}</td><td>${t.stuck || ""}</td><td><a href="#/attempt/${t.attempt.id}">Review →</a></td></tr>`).join("")}</tbody></table></section>` : ""}
       <section class="card"><h2>By section</h2>${typeTable(ds, d => d.category, k => `<span class="cat cat-${esc(k)}">${esc(k)}</span> ${esc(cats[k] || k)}`)}</section>
       <section class="card"><h2>By question type</h2><p class="muted small">Sorted weakest first. “vs target” compares your time with the time you can afford per question.</p>${typeTable(ds, d => d.subcategory, subLbl)}</section>
@@ -63,7 +63,7 @@ export async function showStats(root, userId, ctx) {
         <table class="tbl"><thead><tr><th>Part of the paper</th><th>Qs</th><th>Correct</th><th>Avg time</th><th>Blank</th><th>Rushed</th></tr></thead><tbody>
         ${th.map(t => `<tr><td>${t.label}</td><td>${t.n}</td><td>${accBar(t.acc)}</td><td>${fmtDur(t.avgMs)}</td><td>${t.blanks || ""}</td><td>${t.rushed || ""}</td></tr>`).join("")}</tbody></table></section>` : ""}
       <section class="card"><h2>All sessions</h2><table class="tbl"><thead><tr><th>Date</th><th>Type</th><th>Title</th><th>Score</th><th></th></tr></thead><tbody>
-        ${atts.slice().reverse().map(a => `<tr><td>${fmtDate(a.started_at)}</td><td>${a.mode}</td><td>${esc(a.title)}</td><td>${a.score ?? "–"}/${a.total}</td><td><a href="#/attempt/${a.id}">Review →</a></td></tr>`).join("")}
+        ${atts.slice().reverse().map(a => `<tr><td>${fmtDate(a.started_at)}</td><td>${a.paper ? "mock (paper)" : a.mode}</td><td>${esc(a.title)}</td><td>${a.score ?? "–"}/${a.total}</td><td><a href="#/attempt/${a.id}">Review →</a></td></tr>`).join("")}
       </tbody></table></section>`;
   }
 

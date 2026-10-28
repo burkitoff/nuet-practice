@@ -1,6 +1,7 @@
 import { api } from "./api.js";
 import { CONFIG } from "./config.js";
-import { $, esc, fmtDur, fmtDate, pct, fmtPct, toast, modal } from "./util.js";
+import { $, esc, fmtDur, fmtDate, pct, fmtPct, toast } from "./util.js";
+import { loadLibrary, seriesProgress, assignedCard, startMockFlow, nextStepCard } from "./library.js";
 
 export function showLogin(root, { onLogin }) {
   root.innerHTML = `
@@ -34,39 +35,35 @@ export function showLogin(root, { onLogin }) {
 export async function showHome(root, ctx) {
   root.innerHTML = `<div class="loading">Loading…</div>`;
   await api.finalizeExpired().catch(() => {});
-  const [mocks, attempts] = await Promise.all([api.mocks(), api.myAttempts()]);
+  const teacher = ctx.me.role === "teacher";
+  const [attempts, lib] = await Promise.all([api.myAttempts(), teacher ? null : loadLibrary()]);
   const open = attempts.filter(a => a.status === "in_progress" && a.mode === "mock");
   const done = attempts.filter(a => a.status === "submitted");
-  const used = id => attempts.filter(a => a.mock_id === id).length;
-  const visibleMocks = mocks.filter(m => m.published);
-  const teacher = ctx.me.role === "teacher";
   const recentQs = done.reduce((s, a) => s + a.total, 0);
   const recentScore = done.reduce((s, a) => s + (a.score || 0), 0);
+  const prog = lib ? seriesProgress(lib) : [];
 
   root.innerHTML = `<div class="page">
     <div class="page-head"><h1>Hello, ${esc(ctx.me.display_name || ctx.me.username)}</h1></div>
     ${open.length ? `<section class="card attention"><h2>Unfinished</h2>${open.map(a => `
       <div class="row-item"><div><b>${esc(a.title)}</b><div class="muted small">started ${fmtDate(a.started_at)}${a.time_limit_sec ? ` · timer keeps running (${fmtDur(a.time_limit_sec * 1000)} limit)` : ""}</div></div>
       <a class="btn btn-primary" href="#/run/${a.id}">Continue</a></div>`).join("")}</section>` : ""}
+    ${teacher ? "" : `<div id="nextStep"></div>${assignedCard(lib)}`}
 
     <div class="home-grid">
       ${teacher ? `<section class="card">
         <h2>Your groups</h2>
         <p class="muted small">${ctx.myGroups.length ? `You can see the students and results of ${ctx.myGroups.map(esc).join(", ")}.` : "No groups are assigned to your account yet."}</p>
-        <div class="quick"><a class="btn btn-primary" href="#/teach">Class overview</a><a class="btn" href="#/teach/mocks">Mock results</a></div>
+        <div class="quick"><a class="btn btn-primary" href="#/teach">Class overview</a><a class="btn" href="#/teach/mocks">Mocks</a></div>
       </section>` : `<section class="card">
-        <h2>Mock tests</h2>
-        <p class="muted small">Full timed papers in exam conditions. No answers are shown until you submit.</p>
-        ${visibleMocks.length ? visibleMocks.map(m => {
-          const u = used(m.id), left = m.max_attempts - u, inprog = open.find(a => a.mock_id === m.id);
-          return `<div class="row-item"><div><b>${esc(m.title)}</b>
-            <div class="muted small">${m.question_ids.length} questions · ${fmtDur(m.time_limit_sec * 1000, { sec: false })}${m.description ? " · " + esc(m.description) : ""}${u ? ` · taken ${u}×` : ""}</div></div>
-            ${inprog ? `<a class="btn" href="#/run/${inprog.id}">Continue</a>` : left > 0 ? `<button class="btn btn-primary" data-mock="${m.id}">Start</button>` : `<span class="muted small">done</span>`}</div>`;
-        }).join("") : `<p class="muted">No mocks assigned yet.</p>`}
+        <div class="card-head"><h2>Mock library</h2><a href="#/mocks">All mocks →</a></div>
+        <p class="muted small">Timed tests in exam conditions. Each series opens one mock at a time.</p>
+        ${prog.length ? prog.map(({ s, done: d, inPlan }) => `<div class="prog-row"><span>${esc(s.title)}</span><span class="prog"><span style="width:${inPlan ? Math.round(100 * d / inPlan) : 0}%"></span></span><span class="muted small">${d}/${inPlan}</span></div>`).join("")
+          : `<p class="muted">No mocks yet.</p>`}
       </section>`}
       <section class="card">
         <h2>Practice</h2>
-        <p class="muted small">Short sets with no time limit. Answer them, press Finish, then see the correct answers.</p>
+        <p class="muted small">Short sets with no time limit. Answer them, press Finish, then see the correct answers. Questions from a mock join your practice after you've taken that mock.</p>
         <div class="quick">
           <button class="btn" data-quick="1">1 random question</button>
           <button class="btn" data-quick="5">5 random</button>
@@ -79,25 +76,20 @@ export async function showHome(root, ctx) {
     <section class="card">
       <div class="card-head"><h2>Recent</h2><a href="#/stats">All statistics →</a></div>
       ${done.length ? `<p class="muted small">${recentQs} questions so far · ${fmtPct(pct(recentScore, recentQs))} correct</p>
-      <table class="tbl"><tbody>${done.slice(0, 8).map(a => `<tr><td>${fmtDate(a.started_at)}</td><td>${a.mode === "mock" ? "Mock" : "Practice"}</td><td>${esc(a.title)}</td>
-        <td><b>${a.score ?? 0}/${a.total}</b></td><td><a href="#/attempt/${a.id}">Review →</a></td></tr>`).join("")}</tbody></table>` : `<p class="muted">Nothing yet — start with a practice set.</p>`}
+      <table class="tbl"><tbody>${done.slice(0, 8).map(a => `<tr><td>${fmtDate(a.started_at)}</td><td>${a.mode === "mock" ? (a.paper ? "Paper mock" : "Mock") : "Practice"}</td><td>${esc(a.title)}</td>
+        <td><b>${a.score ?? 0}/${a.total}</b></td><td><a href="#/attempt/${a.id}">Review →</a></td></tr>`).join("")}</tbody></table>` : `<p class="muted">Nothing yet — start with a practice set or your first mock.</p>`}
     </section></div>`;
 
   root.onclick = async e => {
-    const mb = e.target.closest("[data-mock]"), qb = e.target.closest("[data-quick]");
-    if (mb) {
-      const m = mocks.find(x => x.id === mb.dataset.mock);
-      const ok = await modal({ title: `Start “${m.title}”?`, body: `<p>${m.question_ids.length} questions, <b>${fmtDur(m.time_limit_sec * 1000, { sec: false })}</b>.</p>
-        <p>The timer starts now and keeps running even if you close the page. Find a quiet place and make sure you have time to finish.</p>
-        <p class="muted small">Tip: you can hide the timer by clicking it; you'll still get warnings at 10, 5 and 1 minutes.</p>`,
-        buttons: [{ label: "Not now", value: false }, { label: "Start the test", value: true, kind: "primary" }] });
-      if (!ok) return;
-      try { ctx.go(`#/run/${await api.startMock(m.id)}`); } catch (err) { toast(err.message, "error"); }
+    const mb = e.target.closest("[data-start]"), qb = e.target.closest("[data-quick]");
+    if (mb && !mb.closest("#nextStep")) {
+      startMockFlow(lib.rows.find(r => r.mock.id === mb.dataset.start), ctx);
     } else if (qb) {
       qb.disabled = true;
-      try { ctx.go(`#/run/${await api.startPractice({ count: +qb.dataset.quick })}`); } catch (err) { toast(err.message, "error"); qb.disabled = false; }
+      try { ctx.go(`#/run/${await api.startPractice({ count: +qb.dataset.quick })}`); } catch (err) { toast(/no questions/.test(err.message) ? "No practice questions left right now — take a mock to unlock more." : err.message, "error"); qb.disabled = false; }
     }
   };
+  if (!teacher) nextStepCard($("#nextStep", root), lib, ctx);
 }
 
 export async function showPractice(root, ctx) {
@@ -131,7 +123,7 @@ export async function showPractice(root, ctx) {
     const btn = f.querySelector("button"); btn.disabled = true;
     try {
       ctx.go(`#/run/${await api.startPractice({ count: +f.count.value, category: f.category.value, subcategory: f.subcategory.value, skill: f.skill.value, exam: f.exam.value })}`);
-    } catch (err) { toast(/no questions/.test(err.message) ? "No questions match — try a wider choice." : err.message, "error"); btn.disabled = false; }
+    } catch (err) { toast(/no questions/.test(err.message) ? "No questions match — try a wider choice. Questions from mocks join Practice after you've taken that mock." : err.message, "error"); btn.disabled = false; }
   };
 }
 
@@ -139,7 +131,7 @@ export function showAccount(root, ctx) {
   root.innerHTML = `<div class="page narrow">
     <p class="crumbs"><a href="#/">Home</a> › Account</p>
     <h1>Account</h1>
-    <div class="card"><p><b>${esc(ctx.me.display_name)}</b><br><span class="muted">username: ${esc(ctx.me.username)}${ctx.me.group_code ? ` · group ${esc(ctx.me.group_code)}` : ""}${ctx.me.role === "teacher" ? ` · teacher (${ctx.me.teacher_level === "full" ? "full access" : "results access"})${ctx.myGroups.length ? ` · groups ${ctx.myGroups.map(esc).join(", ")}` : ""}` : ""}</span></p></div>
+    <div class="card"><p><b>${esc(ctx.me.display_name)}</b><br><span class="muted">username: ${esc(ctx.me.username)}${ctx.me.group_code ? ` · group ${esc(ctx.me.group_code)}` : ""}${ctx.me.role === "student" && ctx.levels.find(l => l.level === ctx.me.skill_level) ? ` · level: ${esc(ctx.levels.find(l => l.level === ctx.me.skill_level).label)}` : ""}${ctx.me.role === "teacher" ? ` · teacher (${ctx.me.teacher_level === "full" ? "full access" : "results access"})${ctx.myGroups.length ? ` · groups ${ctx.myGroups.map(esc).join(", ")}` : ""}` : ""}</span></p></div>
     <form class="card form" id="pw">
       <h2>Change password</h2>
       <label>New password<input name="p1" type="password" minlength="8" autocomplete="new-password" required></label>

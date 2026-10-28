@@ -20,10 +20,14 @@ export async function runAttempt(root, attemptId, { go }) {
 
   const qs = await api.questions(attempt.question_ids);
   const qById = Object.fromEntries(qs.map(q => [q.id, q]));
-  const urls = await api.mediaUrls(qs.flatMap(mediaPaths));
+  const pics = await preparePictures(root, [...new Set(qs.flatMap(mediaPaths))], attempt);
+  if (!pics) { go("#/"); return {}; }
+  const urls = pics.urls;
+  let startedIso = attempt.started_at;
+  try { startedIso = (await api.attemptReady(attemptId)) || startedIso; } catch (_) {}
   const serverNow = await api.serverNow();
   const skew = serverNow - Date.now();
-  const startedMs = Date.parse(attempt.started_at);
+  const startedMs = Date.parse(startedIso);
   const clock = () => Date.now() + skew - startedMs;
   const isMock = attempt.mode === "mock";
   const limitMs = attempt.time_limit_sec ? attempt.time_limit_sec * 1000 : null;
@@ -116,6 +120,24 @@ export async function runAttempt(root, attemptId, { go }) {
   </div>`;
 
   const paper = $("#paper", root), grid = $("#sheetGrid", root);
+
+  const retrying = new Set();
+  async function repairImage(path) {
+    if (retrying.has(path)) return;
+    retrying.add(path);
+    try {
+      const fresh = await api.mediaUrls([path], true);
+      urls[path] = await getPicture(fresh[path], pics.made);
+      if (cur >= 0) draw();
+    } catch (_) {
+      $$(`img[data-path="${CSS.escape(path)}"]`, paper).forEach(im => {
+        const b = h("button", { class: "img-retry", type: "button", "data-retry": path }, "Picture didn't load — tap to try again");
+        im.replaceWith(b);
+      });
+    } finally { retrying.delete(path); }
+  }
+  paper.addEventListener("error", e => { const im = e.target; if (im.tagName === "IMG" && im.dataset.path) repairImage(im.dataset.path); }, true);
+  paper.addEventListener("click", e => { const b = e.target.closest("[data-retry]"); if (b) { b.disabled = true; b.textContent = "Loading…"; repairImage(b.dataset.retry); } });
 
   function drawSheet() {
     grid.innerHTML = S.map((it, i) => `
@@ -272,6 +294,7 @@ export async function runAttempt(root, attemptId, { go }) {
   const saveTimerI = setInterval(save, SAVE_EVERY_MS);
 
   function cleanup() {
+    pics.made.forEach(u => { try { URL.revokeObjectURL(u); } catch (_) {} }); pics.made.length = 0; warmImage.keep.length = 0;
     clearInterval(tickTimer); clearInterval(saveTimerI); clearTimeout(saveTimer);
     document.removeEventListener("keydown", onKey);
     ACT_EVENTS.forEach(t => document.removeEventListener(t, activity, { capture: true }));
@@ -303,6 +326,83 @@ export async function runAttempt(root, attemptId, { go }) {
     confirmLeave,
     async destroy() { if (!finished) { accrue(); if (cur >= 0) ev(S[cur], "out"); cur = -1; await save(); } cleanup(); },
   };
+}
+
+async function fetchBlob(url, tries) {
+  let last;
+  for (let i = 0; i < tries; i++) {
+    try {
+      if (!url) throw new Error("no address");
+      const r = await fetch(url, { cache: "no-store" });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const b = await r.blob();
+      if (!b.size) throw new Error("empty file");
+      return URL.createObjectURL(b);
+    } catch (e) { last = e; await new Promise(res => setTimeout(res, 400 * (i + 1) * (i + 1))); }
+  }
+  throw last;
+}
+
+function warmImage(url) {
+  return new Promise((res, rej) => {
+    if (!url) return rej(new Error("no address"));
+    const im = new Image(); const t = setTimeout(() => rej(new Error("timeout")), 20000);
+    im.onload = () => { clearTimeout(t); im.decode ? im.decode().then(() => res(url), () => res(url)) : res(url); };
+    im.onerror = () => { clearTimeout(t); rej(new Error("failed")); };
+    im.src = url; warmImage.keep.push(im);
+  });
+}
+warmImage.keep = [];
+
+async function getPicture(url, made) {
+  try { const u = await fetchBlob(url, 3); made.push(u); return u; }
+  catch (e) { return await warmImage(url); }
+}
+
+async function preparePictures(root, paths, attempt) {
+  const urls = {}, made = [];
+  if (!paths.length) return { urls, made, failed: [] };
+  const isMock = attempt.mode === "mock";
+  root.innerHTML = `<div class="prep"><div class="card prep-card">
+    <h2>${isMock ? "Preparing your test" : "Getting your questions ready"}</h2>
+    <p class="muted small">Downloading every picture now, so nothing has to load during the ${isMock ? "test" : "set"}.${isMock ? " <b>The timer starts when this is done.</b>" : ""}</p>
+    <div class="prog prep-bar"><span style="width:0%"></span></div>
+    <p class="small" id="prepTxt">0 of ${paths.length} pictures</p>
+    <div id="prepMsg"></div></div></div>`;
+  let done = 0;
+  const show = () => { $(".prep-bar > span", root).style.width = Math.round(100 * done / paths.length) + "%"; $("#prepTxt", root).textContent = `${done} of ${paths.length} pictures`; };
+  async function round(list, force) {
+    let signed = {};
+    try { signed = await api.mediaUrls(list, force); } catch (_) {}
+    const failed = [];
+    let next = 0;
+    const worker = async () => {
+      while (next < list.length) {
+        const p = list[next++];
+        try { urls[p] = await getPicture(signed[p], made); done++; show(); }
+        catch (_) { failed.push(p); }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(6, list.length) }, worker));
+    return failed;
+  }
+  let failed = await round(paths, false);
+  if (failed.length) failed = await round(failed, true);
+  while (failed.length) {
+    $("#prepMsg", root).innerHTML = `<p class="err">${failed.length} picture${failed.length === 1 ? "" : "s"} couldn't be downloaded. Check your internet connection.</p>
+      <div class="btn-row"><button class="btn btn-ghost" data-act="back">Back</button><span class="grow"></span>
+      <button class="btn" data-act="anyway">Start anyway</button><button class="btn btn-primary" data-act="retry">Try again</button></div>
+      <p class="muted small">If you start anyway, those pictures keep trying to load and get a “try again” button.${isMock ? " The timer waits here for up to 3 minutes after you pressed Start." : ""}</p>`;
+    const act = await new Promise(res => $("#prepMsg", root).addEventListener("click", e => { const b = e.target.closest("[data-act]"); if (b) res(b.dataset.act); }));
+    if (act === "back") { made.forEach(u => URL.revokeObjectURL(u)); return null; }
+    if (act === "anyway") {
+      try { Object.assign(urls, Object.fromEntries(Object.entries(await api.mediaUrls(failed, true)).filter(([p]) => !urls[p]))); } catch (_) {}
+      break;
+    }
+    $("#prepMsg", root).innerHTML = `<p class="muted small">Trying again…</p>`;
+    failed = await round(failed, true);
+  }
+  return { urls, made, failed };
 }
 
 export async function reportProblem(qid, attemptId) {

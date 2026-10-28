@@ -33,17 +33,18 @@ export function deriveItems(attempts, items, qmeta = {}) {
     const firstSel = ev.findIndex(e => e.e === "sel");
     const skippedFirst = answered && firstOut >= 0 && (firstSel < 0 || firstSel > firstOut);
     const status = it.is_correct ? "correct" : answered ? "wrong" : "blank";
-    const rawMs = it.time_ms;
-    it = { ...it, time_ms: it.time_override_ms ?? it.time_ms };
+    const paper = !!a.paper;
+    const rawMs = paper ? null : it.time_ms;
+    it = { ...it, time_ms: paper ? null : it.time_override_ms ?? it.time_ms };
     out.push({
-      ...it, raw_time_ms: rawMs, attempt: a, mode: a.mode, target, status,
+      ...it, raw_time_ms: rawMs, attempt: a, mode: a.mode, target, status, paper,
       category: q.category || "?", subcategory: q.subcategory || (q.category ? q.category + ":untagged" : "untagged"), skills: q.skills || [], exam_code: q.exam_code,
-      rushed: answered && !it.is_correct && it.time_ms < target * RUSH_FRACTION,
-      stuck: it.time_ms > target * STUCK_FACTOR,
-      overTarget: it.time_ms > target,
-      change, skippedFirst,
-      ratio: it.time_ms / target,
-      decisionMs: it.first_answer_ms != null && it.first_seen_ms != null && it.first_answer_ms >= it.first_seen_ms ? it.first_answer_ms - it.first_seen_ms : null,
+      rushed: !paper && answered && !it.is_correct && it.time_ms < target * RUSH_FRACTION,
+      stuck: !paper && it.time_ms > target * STUCK_FACTOR,
+      overTarget: !paper && it.time_ms > target,
+      change: paper ? null : change, skippedFirst: !paper && skippedFirst,
+      ratio: paper ? null : it.time_ms / target,
+      decisionMs: !paper && it.first_answer_ms != null && it.first_seen_ms != null && it.first_answer_ms >= it.first_seen_ms ? it.first_answer_ms - it.first_seen_ms : null,
     });
   }
   return out;
@@ -70,7 +71,7 @@ export function summarize(ds) {
     ww: ds.filter(d => d.change === "WW").length,
     changed: ds.filter(d => d.changes > 0).length,
     flagged: ds.filter(d => d.flagged).length,
-    wastedMs: wrong.reduce((s, d) => s + d.time_ms, 0),
+    wastedMs: wrong.reduce((s, d) => s + (d.time_ms || 0), 0),
   };
 }
 
@@ -133,7 +134,7 @@ export function mockTrend(attempts, ds) {
     .map(a => {
       const its = ds.filter(d => d.attempt_id === a.id);
       const s = summarize(its);
-      return { attempt: a, date: a.started_at, scorePct: pct(a.score, a.total), usedMs: its.reduce((x, d) => x + d.time_ms, 0), ...s };
+      return { attempt: a, date: a.started_at, scorePct: pct(a.score, a.total), usedMs: a.paper ? null : its.reduce((x, d) => x + d.time_ms, 0), ...s };
     });
 }
 

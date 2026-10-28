@@ -5,7 +5,8 @@ import { showLogin, showHome, showPractice, showAccount } from "./views.js";
 import { runAttempt } from "./runner.js";
 import { showAttempt } from "./results.js";
 import { showStats } from "./stats.js";
-import { showClass, showStudents, showMocks, showMockEdit, showMockResults, showQuestions, showCleanup, clearAdminCache } from "./admin.js";
+import { showClass, showStudents, showMocks, showMockEdit, showMockResults, showQuestions, showCleanup, showAccess, showPaper, clearAdminCache } from "./admin.js";
+import { showMocksPage } from "./library.js";
 
 const app = $("#app");
 const ctx = { me: null, taxonomy: [], labels: {}, go, idleSec: CONFIG.IDLE_AFTER_SEC };
@@ -21,6 +22,7 @@ function shell(active) {
     <a class="brand" href="#/" aria-label="${esc(CONFIG.APP_NAME)} home"><img src="/img/logo.svg" alt="${esc(CONFIG.APP_NAME)}" width="125" height="36"></a>
     <nav>
       <a href="#/" class="${active === "home" ? "on" : ""}">Home</a>
+      ${teacher ? "" : `<a href="#/mocks" class="${active === "mocks" ? "on" : ""}">Mocks</a>`}
       <a href="#/practice" class="${active === "practice" ? "on" : ""}">Practice</a>
       <a href="#/stats" class="${active === "stats" ? "on" : ""}">My stats</a>
       ${admin ? `<a href="#/admin/class" class="${active === "admin" ? "on" : ""}">Admin</a>` : ""}
@@ -45,7 +47,7 @@ async function route() {
   if (current?.destroy) { try { await current.destroy(); } catch (_) {} }
   current = null;
   const parts = (location.hash.replace(/^#\/?/, "") || "").split("/");
-  const [p0, p1, p2] = parts;
+  const [p0, p1, p2, p3] = parts;
   const admin = ctx.me.role === "admin", teacher = ctx.me.role === "teacher";
   try {
     if (p0 === "run" && p1) {
@@ -53,25 +55,28 @@ async function route() {
       current = await runAttempt($("#view"), p1, ctx);
       return;
     }
-    const tab = p0 === "admin" || p0 === "teach" ? "admin" : p0 === "practice" ? "practice" : p0 === "stats" ? "stats" : p0 === "" ? "home" : "";
+    const tab = p0 === "admin" || p0 === "teach" ? "admin" : p0 === "practice" ? "practice" : p0 === "mocks" ? "mocks" : p0 === "stats" ? "stats" : p0 === "" ? "home" : "";
     const view = shell(tab);
     if (!p0) await showHome(view, ctx);
     else if (p0 === "practice") await showPractice(view, ctx);
+    else if (p0 === "mocks" && !teacher) await showMocksPage(view, ctx);
     else if (p0 === "attempt" && p1) await showAttempt(view, p1, ctx);
     else if (p0 === "stats") await showStats(view, p1 && (admin || teacher) ? p1 : ctx.me.id, ctx);
     else if (p0 === "account") showAccount(view, ctx);
     else if (p0 === "admin" && admin) {
       if (!p1 || p1 === "class") await showClass(view, ctx);
       else if (p1 === "students") await showStudents(view, ctx);
-      else if (p1 === "mocks") await showMocks(view, ctx);
-      else if (p1 === "mock" && p2) await showMockResults(view, p2, ctx);
+      else if (p1 === "mocks") await showMocks(view, ctx, p2);
+      else if (p1 === "mock" && p2) await showMockResults(view, p2, ctx, p3);
       else if (p1 === "mock-edit" && p2) await showMockEdit(view, p2, ctx);
+      else if (p1 === "access") await showAccess(view, ctx);
+      else if (p1 === "paper" && p2) await showPaper(view, ctx, p2, p3);
       else if (p1 === "questions") await showQuestions(view, ctx);
       else if (p1 === "cleanup") await showCleanup(view, ctx);
     } else if (p0 === "teach" && teacher) {
       if (!p1 || p1 === "class") await showClass(view, ctx);
-      else if (p1 === "mocks") await showMocks(view, ctx);
-      else if (p1 === "mock" && p2) await showMockResults(view, p2, ctx);
+      else if (p1 === "mocks") await showMocks(view, ctx, p2);
+      else if (p1 === "mock" && p2) await showMockResults(view, p2, ctx, p3);
       else view.innerHTML = `<div class="page"><h1>Not found</h1><p><a href="#/teach">Back</a></p></div>`;
     } else view.innerHTML = `<div class="page"><h1>Not found</h1><p><a href="#/">Go home</a></p></div>`;
   } catch (e) {
@@ -87,7 +92,7 @@ async function afterLogin() {
   if (!ctx.me) throw new Error("Your account has no profile yet. Ask your teacher.");
   ctx.myGroups = ctx.me.role === "teacher" ? await api.myTeacherGroups() : null;
   if (!ctx.me.active) { await api.signOut(); throw new Error("This account is disabled. Ask your teacher."); }
-  ctx.taxonomy = await api.taxonomy();
+  [ctx.taxonomy, ctx.levels] = await Promise.all([api.taxonomy(), api.skillLevels()]);
   ctx.labels = Object.fromEntries(ctx.taxonomy.map(t => [t.code, t.label]));
   Object.assign(ctx.labels, { "P:untagged": "Problem Solving (type not tagged yet)", "R:untagged": "Critical Thinking (type not tagged yet)", untagged: "Not tagged yet" });
   route();

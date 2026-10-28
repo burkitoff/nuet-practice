@@ -52,11 +52,11 @@ function createSupabaseApi() {
       }
       return out;
     },
-    async mediaUrls(paths) {
+    async mediaUrls(paths, force = false) {
       const now = Date.now(), res = {}, need = [];
       for (const p of new Set(paths)) {
         const c = urlCache.get(p);
-        if (c && c.exp > now + 60000) res[p] = c.url; else need.push(p);
+        if (c && !force && c.exp > now + 60000) res[p] = c.url; else need.push(p);
       }
       if (need.length) {
         const data = must(await sb.storage.from("media").createSignedUrls(need, 3600));
@@ -79,6 +79,7 @@ function createSupabaseApi() {
       }));
     },
     async startMock(id) { return must(await sb.rpc("start_mock", { p_mock: id })); },
+    async attemptReady(id) { return must(await sb.rpc("attempt_ready", { p_attempt: id })); },
     async finalizeExpired() { return must(await sb.rpc("finalize_my_expired")); },
     async attempt(id) {
       const attempt = must(await sb.from("attempts").select("*").eq("id", id).single());
@@ -165,6 +166,38 @@ function createSupabaseApi() {
     async reports() { return must(await sb.from("question_reports").select("*").order("created_at", { ascending: false })); },
     async setReportStatus(id, status) { must(await sb.from("question_reports").update({ status }).eq("id", id)); },
     async allAttempts() { return must(await sb.from("attempts").select("*").order("started_at", { ascending: false })); },
+
+    async series() { return must(await sb.from("series").select("*").order("sort")); },
+    async tiers() { return must(await sb.from("tiers").select("*").order("sort")); },
+    async skillLevels() { return must(await sb.from("skill_levels").select("*").order("level")); },
+    async myMockStatus() { return must(await sb.rpc("my_mock_status")); },
+    async assignments() { return must(await sb.from("assignments").select("*").order("opens_at", { ascending: false })); },
+    async assignmentTargets() { return must(await sb.from("assignment_targets").select("*")); },
+    async saveAssignment(a) {
+      return must(await sb.rpc("admin_save_assignment", {
+        p_id: a.id || null, p_mock: a.mock_id, p_note: a.note || "", p_opens: a.opens_at || null, p_deadline: a.deadline_at || null,
+        p_release: a.release_mode, p_max_attempts: a.max_attempts || 1, p_groups: a.groups || [], p_users: a.users || [],
+      }));
+    },
+    async closeAssignment(id, release) { must(await sb.rpc("admin_close_assignment", { p_id: id, p_release: !!release })); },
+    async releaseAssignment(id) { must(await sb.rpc("admin_release_assignment", { p_id: id })); },
+    async deleteAssignment(id) { must(await sb.from("assignments").delete().eq("id", id)); },
+    async sweepAssignments() { must(await sb.rpc("sweep_assignments")); },
+    async saveTier(t) { must(await sb.from("tiers").upsert(t)); },
+    async deleteTier(code) { must(await sb.from("tiers").delete().eq("code", code)); },
+    async saveSkillLevel(l) { must(await sb.from("skill_levels").upsert(l)); },
+    async itemsFor(attemptIds) {
+      const out = [];
+      for (let i = 0; i < attemptIds.length; i += 100) {
+        out.push(...must(await sb.from("attempt_items").select("attempt_id,question_id,position,answer").in("attempt_id", attemptIds.slice(i, i + 100))));
+      }
+      return out;
+    },
+    async mockSkips() { return must(await sb.from("mock_skips").select("*")); },
+    async recordPaper(mockId, userId, answers, takenAt) {
+      return must(await sb.rpc("admin_record_paper", { p_mock: mockId, p_user: userId, p_answers: answers, p_taken_at: takenAt || null }));
+    },
+    async setSkips(mockId, userIds, done) { return must(await sb.rpc("admin_set_skips", { p_mock: mockId, p_users: userIds, p_done: !!done })); },
   };
   return api;
 }

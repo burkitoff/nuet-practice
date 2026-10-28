@@ -32,7 +32,7 @@ export function hasParsedContent(q) {
 export function renderQuestion(q, urls, o = {}) {
   const crossed = o.crossed || new Set();
   const media = q.media || [];
-  const img = (m, cls) => `<img class="${cls}" data-fit="1"${sizeStyle(m)} src="${esc(urls[m.path] || "")}" alt="${m.kind === "table" ? "table" : "diagram"}">`;
+  const img = (m, cls) => `<img class="${cls}" data-fit="1" data-path="${esc(m.path)}"${sizeStyle(m)} src="${esc(urls[m.path] || "")}" alt="${m.kind === "table" ? "table" : "diagram"}">`;
 
   let stemHtml;
   if (!hasParsedContent(q) && q.snapshot_path) {
