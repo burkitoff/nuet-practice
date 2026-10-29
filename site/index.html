@@ -65,9 +65,42 @@
         <p class="gate-tag" data-i18n="gate.tag">Train your aim.</p>
         <p class="gate-sub" data-i18n="gate.sub">The NUET preparation platform</p>
         <a class="btn btn-primary btn-lg" id="enter" href="/app/" data-i18n="gate.login">Log in to the platform</a>
+        <a class="btn btn-lg gate-try" id="gateTry" href="/free/" data-i18n="gate.try" hidden>Try it free</a>
         <p class="gate-note" id="enterNote" data-i18n="gate.note">Your teacher gives you your account.</p>
       </div>
-      <a class="discover" href="#how"><span data-i18n="gate.discover">New here? Discover NUET Oqy</span><i aria-hidden="true"></i></a>
+      <a class="discover" href="#reviews"><span data-i18n="gate.discover">New here? Discover NUET Oqy</span><i aria-hidden="true"></i></a>
+    </section>
+
+    <section class="reviews" id="reviews">
+      <div class="rain" aria-hidden="true"></div>
+      <div class="reviews-head">
+        <h2 data-i18n="rev.title">What our students say</h2>
+        <p class="lead" data-i18n="rev.sub">About 90% of our students get into NU. The other 10%? They chose to study abroad.</p>
+      </div>
+      <div class="carousel" id="carousel" hidden>
+        <ul class="track" id="track" aria-roledescription="carousel"></ul>
+        <div class="car-nav">
+          <button type="button" class="car-btn" id="prev" data-i18n-label="rev.prev" aria-label="Previous review"><span aria-hidden="true">←</span></button>
+          <button type="button" class="car-btn" id="next" data-i18n-label="rev.next" aria-label="Next review"><span aria-hidden="true">→</span></button>
+        </div>
+      </div>
+    </section>
+
+    <section class="free" id="free" hidden>
+      <div class="free-copy">
+        <h2 data-i18n="free.title">Try the platform free</h2>
+        <p class="lead" data-i18n="free.lead">Sit Mock 1 in the real NUET format and two problem-solving runs, then see exactly where your time and points went.</p>
+        <div class="free-ctas">
+          <a class="btn btn-primary btn-lg" href="/free/" data-i18n="free.see">See what's free</a>
+          <a class="btn btn-lg" href="/app/#/signup" data-i18n="free.create">Create a free account</a>
+        </div>
+      </div>
+      <div class="free-art" aria-hidden="true">
+        <div class="devs">
+          <img class="dv-laptop" src="img/free/laptop-results.webp" alt="" width="1974" height="1689" loading="lazy" decoding="async">
+          <img class="dv-phone" src="img/free/phone-exam.webp" alt="" width="656" height="1355" loading="lazy" decoding="async">
+        </div>
+      </div>
     </section>
 
     <section class="how" id="how">
@@ -106,21 +139,6 @@
           <li><svg aria-hidden="true"><use href="#i-ring"/></svg><div><h3 data-i18n="p3.t">Progress you can see</h3><p data-i18n="p3.d">Every mistake is reviewed and tracked on the platform.</p></div></li>
         </ol>
         <a class="btn btn-primary" href="#join" data-i18n="how.cta">Get a free diagnostic</a>
-      </div>
-    </section>
-
-    <section class="reviews" id="reviews">
-      <div class="rain" aria-hidden="true"></div>
-      <div class="reviews-head">
-        <h2 data-i18n="rev.title">What our students say</h2>
-        <p class="lead" data-i18n="rev.sub">About 90% of our students get into NU. The other 10%? They chose to study abroad.</p>
-      </div>
-      <div class="carousel" id="carousel" hidden>
-        <ul class="track" id="track" aria-roledescription="carousel"></ul>
-        <div class="car-nav">
-          <button type="button" class="car-btn" id="prev" data-i18n-label="rev.prev" aria-label="Previous review"><span aria-hidden="true">←</span></button>
-          <button type="button" class="car-btn" id="next" data-i18n-label="rev.next" aria-label="Next review"><span aria-hidden="true">→</span></button>
-        </div>
       </div>
     </section>
 

@@ -342,3 +342,9 @@ button.lt-plan:hover { border-color: var(--warn); color: var(--warn); }
 .login .note { font-size: 13.5px; }
 .su-row input { width: 100%; min-width: 0; }
 .su-row label { min-width: 0; }
+@media (max-width: 520px) {
+  .paper-nav { flex-wrap: wrap; row-gap: 4px; }
+  .paper-nav .nav-mid { display: none; }
+  .paper-nav #report { order: 5; flex-basis: 100%; justify-content: center; }
+  .paper-nav #next { margin-left: auto; }
+}

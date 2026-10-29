@@ -9,7 +9,12 @@ const T = {
     "gate.sub": "The NUET preparation platform",
     "gate.login": "Log in to the platform",
     "gate.continue": "Go to the platform",
-    "gate.note": "Your teacher gives you your account.",
+    "gate.note": "Centre students get their account from the teacher.",
+    "gate.try": "Try it free",
+    "free.title": "Try the platform free",
+    "free.lead": "Sit Mock 1 in the real NUET format and two problem-solving runs, then see exactly where your time and points went.",
+    "free.see": "See what's free",
+    "free.create": "Create a free account",
     "gate.noteIn": "You're already signed in.",
     "gate.discover": "New here? Discover NUET Oqy",
     "how.title": "How do you get a high score on the NUET?",
@@ -51,7 +56,12 @@ const T = {
     "gate.sub": "Платформа для подготовки к NUET",
     "gate.login": "Войти на платформу",
     "gate.continue": "Перейти на платформу",
-    "gate.note": "Аккаунт выдаёт преподаватель.",
+    "gate.note": "Ученикам центра аккаунт выдаёт преподаватель.",
+    "gate.try": "Попробовать бесплатно",
+    "free.title": "Попробуйте платформу бесплатно",
+    "free.lead": "Пройдите Пробник 1 в реальном формате NUET и два сета на Problem Solving — и увидите, куда ушли ваше время и баллы.",
+    "free.see": "Что входит бесплатно",
+    "free.create": "Создать бесплатный аккаунт",
     "gate.noteIn": "Вы уже вошли в аккаунт.",
     "gate.discover": "Впервые здесь? Узнайте о NUET Oqy",
     "how.title": "Как получить высокий балл на NUET?",
@@ -125,7 +135,10 @@ function applyLang(next) {
 }
 
 $$(".lang button").forEach(b => b.addEventListener("click", () => { store.set("nuetoqy-lang", b.dataset.lang); applyLang(b.dataset.lang); }));
-if (CONFIG.SIGNUP_ENABLED === true && !signedIn) $("#freeTry").hidden = false;
+if (CONFIG.SIGNUP_ENABLED === true) {
+  $("#free").hidden = false;
+  if (!signedIn) { $("#freeTry").hidden = false; $("#gateTry").hidden = false; }
+}
 
 const bar = $("#bar");
 new IntersectionObserver(([e]) => bar.classList.toggle("solid", !e.isIntersecting), { rootMargin: "-40% 0px 0px 0px" }).observe($(".gate-in"));

@@ -1,0 +1,65 @@
+html { scroll-snap-type: none; }
+.fp .bar-brand { opacity: 1; pointer-events: auto; }
+.fp main { overflow-x: hidden; }
+
+.fp-hero { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); align-items: center; gap: clamp(28px, 5vw, 84px);
+  min-height: min(100svh, 920px); padding: 104px var(--pad) 64px;
+  background: radial-gradient(60% 70% at 78% 52%, rgba(191, 208, 187, .45), transparent 70%), radial-gradient(40% 50% at 92% 18%, rgba(196, 221, 234, .5), transparent 70%), linear-gradient(#F7F3EA, var(--cream)); }
+.fp-hero-copy { max-width: 560px; justify-self: end; }
+.fp h1 { margin: 0 0 20px; font: 700 clamp(36px, 4.6vw, 66px)/1.06 var(--display); letter-spacing: -.035em; text-wrap: balance; }
+.fp-ctas { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px; }
+.fp-note { margin: 16px 0 0; font-size: 14px; color: var(--ink-2); }
+.fp-hero-art { justify-self: start; width: min(100%, 780px, 92svh); }
+
+.devs-hero img { transition: transform 1.2s cubic-bezier(.2, .8, .2, 1), opacity .8s ease; }
+.devs-hero:not(.is-in) .dv-laptop { transform: translateY(26px) scale(.97); opacity: 0; }
+.devs-hero:not(.is-in) .dv-phone { transform: translate(18px, 48px); opacity: 0; }
+.devs-hero .dv-phone { transition-delay: .2s; }
+
+.fp-what { max-width: 1120px; margin: 0 auto; padding: clamp(64px, 9vw, 120px) var(--pad) 40px; }
+.fp-what > h2 { max-width: 640px; margin-bottom: clamp(36px, 6vw, 72px); }
+.fp-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); align-items: center; gap: clamp(28px, 6vw, 96px); padding: clamp(28px, 4vw, 48px) 0; }
+.fp-row + .fp-row { border-top: 1px solid var(--line); }
+.fp-row-flip .fp-row-copy { order: 2; }
+.fp-row h3 { margin-bottom: 12px; font: 700 clamp(22px, 2.2vw, 30px)/1.2 var(--display); letter-spacing: -.02em; }
+.fp-row p { margin: 0; max-width: 46ch; color: var(--ink-2); font-size: clamp(16px, 1.25vw, 18px); }
+.fp-row-art { display: grid; place-items: center; }
+.dv-row-laptop { display: block; width: min(100%, 620px); height: auto; }
+.dv-row-phone { display: block; width: clamp(200px, 19vw, 250px); height: auto; }
+
+.fp-compare { max-width: 880px; margin: 0 auto; padding: clamp(56px, 8vw, 110px) var(--pad) 24px; text-align: center; }
+.fp-compare h2 { margin-bottom: 30px; }
+.fp-table-wrap { overflow-x: auto; }
+.fp-table { width: 100%; border-collapse: separate; border-spacing: 0; text-align: left; font-size: 16px; }
+.fp-table th, .fp-table td { padding: 18px 16px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.fp-table thead th { font: 700 18px/1.2 var(--display); border-bottom: 1.5px solid var(--ink); }
+.fp-table tbody th { font-weight: 700; width: 46%; }
+.fp-table tbody th small { display: block; margin-top: 2px; font-weight: 400; font-size: 14px; color: var(--muted); }
+.fp-table td { color: var(--ink-2); width: 27%; }
+.fp-table .is-full { background: rgba(191, 208, 187, .32); }
+.fp-table thead .is-full { border-radius: 14px 14px 0 0; }
+.fp-table tbody tr:last-child .is-full { border-radius: 0 0 14px 14px; }
+.fp-table .yes { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--ink); color: var(--cream); font-weight: 800; font-size: 14px; }
+.fp-compare-cta { margin: 26px 0 0; }
+
+.fp-final { display: grid; justify-items: center; gap: 14px; text-align: center; padding: clamp(64px, 9vw, 120px) var(--pad) clamp(64px, 8vw, 110px); }
+.fp-final .btn-lg { margin-top: 14px; }
+
+@media (max-width: 860px) {
+  .fp-hero { grid-template-columns: 1fr; min-height: 0; padding-top: 92px; gap: 26px; }
+  .fp-hero-copy { justify-self: start; }
+  .fp-hero-art { justify-self: center; width: min(94%, 560px); }
+  .fp-row, .fp-row-flip { grid-template-columns: 1fr; gap: 26px; }
+  .fp-row-flip .fp-row-copy { order: 0; }
+  .fp-table th, .fp-table td { padding: 14px 10px; }
+}
+@media (max-width: 480px) {
+  .fp-ctas .btn-lg, .fp-final .btn-lg { width: 100%; }
+  .fp-table { font-size: 14.5px; }
+  .fp-table thead th { font-size: 15px; }
+  .fp-table tbody th small { font-size: 13px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .devs-hero img { transition: none; }
+  .devs-hero:not(.is-in) .dv-laptop, .devs-hero:not(.is-in) .dv-phone { transform: none; opacity: 1; }
+}
