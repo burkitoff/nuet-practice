@@ -1,36 +1,6 @@
 import { api } from "./api.js";
-import { CONFIG } from "./config.js";
 import { $, esc, fmtDur, fmtDate, pct, fmtPct, toast } from "./util.js";
 import { loadLibrary, seriesProgress, assignedCard, startMockFlow, nextStepCard } from "./library.js";
-
-export function showLogin(root, { onLogin }) {
-  root.innerHTML = `
-  <div class="login-wrap"><form class="card login" id="loginForm" autocomplete="on">
-    <h1 class="sr-only">${esc(CONFIG.APP_NAME)}</h1><img class="login-logo" src="/img/logo-stacked.svg" alt="" width="150" height="153">
-    <p class="tagline">Train your aim.</p>
-    <p class="muted">Log in with the username and password your teacher gave you.</p>
-    <label>Username<input name="u" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
-    <label>Password<input name="p" type="password" autocomplete="current-password" required></label>
-    <button class="btn btn-primary btn-block" type="submit">Log in</button>
-    <p class="err" id="loginErr" role="alert"></p>
-  </form></div>`;
-  $("#loginForm", root).onsubmit = async e => {
-    e.preventDefault();
-    const f = e.target, btn = f.querySelector("button");
-    btn.disabled = true; $("#loginErr", root).textContent = "";
-    try { await api.signIn(f.u.value, f.p.value); await onLogin(); }
-    catch (err) {
-      const m = err.message || String(err);
-      $("#loginErr", root).textContent =
-        /invalid login credentials/i.test(m) ? "Wrong username or password." :
-        /ban|disabled/i.test(m) ? "This account is disabled. Ask your teacher." :
-        /api key|apikey|secret/i.test(m) ? "Setup problem: the key in config.js is wrong (" + m + ")." :
-        /fetch|network/i.test(m) ? "Can't reach the server — check the internet connection and SUPABASE_URL in config.js." :
-        m;
-      btn.disabled = false;
-    }
-  };
-}
 
 export async function showHome(root, ctx) {
   root.innerHTML = `<div class="loading">Loading…</div>`;
@@ -94,7 +64,7 @@ export async function showHome(root, ctx) {
 
 export async function showPractice(root, ctx) {
   const tax = ctx.taxonomy;
-  const exams = await api.exams();
+  const exams = ctx.me.role === "student" ? [] : await api.exams();
   const cats = tax.filter(t => t.tier === "category");
   root.innerHTML = `<div class="page narrow">
     <p class="crumbs"><a href="#/">Home</a> › Practice</p>
@@ -105,7 +75,7 @@ export async function showPractice(root, ctx) {
       <label>Section<select name="category"><option value="">Any</option>${cats.map(c => `<option value="${esc(c.code)}">${esc(c.label)}</option>`).join("")}</select></label>
       <label>Question type<select name="subcategory"><option value="">Any</option></select></label>
       <label>Skill<select name="skill"><option value="">Any</option></select></label>
-      <label>From paper<select name="exam"><option value="">Any</option>${exams.map(x => `<option>${esc(x)}</option>`).join("")}</select></label>
+      ${ctx.me.role === "student" ? "" : `<label>From paper<select name="exam"><option value="">Any</option>${exams.map(x => `<option>${esc(x)}</option>`).join("")}</select></label>`}
       <p class="muted small">Questions you have seen least are chosen first.</p>
       <button class="btn btn-primary" type="submit">Start</button>
     </form></div>`;
@@ -122,7 +92,7 @@ export async function showPractice(root, ctx) {
     e.preventDefault();
     const btn = f.querySelector("button"); btn.disabled = true;
     try {
-      ctx.go(`#/run/${await api.startPractice({ count: +f.count.value, category: f.category.value, subcategory: f.subcategory.value, skill: f.skill.value, exam: f.exam.value })}`);
+      ctx.go(`#/run/${await api.startPractice({ count: +f.count.value, category: f.category.value, subcategory: f.subcategory.value, skill: f.skill.value, exam: f.exam ? f.exam.value : "" })}`);
     } catch (err) { toast(/no questions/.test(err.message) ? "No questions match — try a wider choice. Questions from mocks join Practice after you've taken that mock." : err.message, "error"); btn.disabled = false; }
   };
 }
@@ -132,6 +102,7 @@ export function showAccount(root, ctx) {
     <p class="crumbs"><a href="#/">Home</a> › Account</p>
     <h1>Account</h1>
     <div class="card"><p><b>${esc(ctx.me.display_name)}</b><br><span class="muted">username: ${esc(ctx.me.username)}${ctx.me.group_code ? ` · group ${esc(ctx.me.group_code)}` : ""}${ctx.me.role === "student" && ctx.levels.find(l => l.level === ctx.me.skill_level) ? ` · level: ${esc(ctx.levels.find(l => l.level === ctx.me.skill_level).label)}` : ""}${ctx.me.role === "teacher" ? ` · teacher (${ctx.me.teacher_level === "full" ? "full access" : "results access"})${ctx.myGroups.length ? ` · groups ${ctx.myGroups.map(esc).join(", ")}` : ""}` : ""}</span></p></div>
+    ${ctx.me.role === "student" ? (() => { const t = (ctx.tiers || []).find(x => x.code === ctx.me.tier); return `<div class="card"><h2>Your plan</h2><p><span class="plan-chip ${t && t.unlimited ? "is-full" : "is-limited"}">${esc(t ? t.label : "No plan")}</span></p><p class="muted small">${esc(t ? t.description : "Your account doesn't include library mocks yet.")}</p></div>`; })() : ""}
     <form class="card form" id="pw">
       <h2>Change password</h2>
       <label>New password<input name="p1" type="password" minlength="8" autocomplete="new-password" required></label>

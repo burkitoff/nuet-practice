@@ -1,4 +1,5 @@
 import { REVIEWS } from "./reviews.js";
+import { CONFIG } from "./config.js";
 
 const T = {
   en: {
@@ -37,6 +38,9 @@ const T = {
     "join.tg": "Message us on Telegram",
     "join.tgnote": "Opens a chat with the teacher.",
     "join.tgtext": "Hi! I'd like to sign up for a free diagnostic.",
+    "join.or": "or",
+    "join.free": "Try the platform free",
+    "join.freenote": "Free account: Mock 1 and 2 problem-solving runs, with full results.",
     "foot.tg": "Telegram channel",
     "foot.login": "Platform login"
   },
@@ -76,6 +80,9 @@ const T = {
     "join.tg": "Написать в Telegram",
     "join.tgnote": "Откроется чат с преподавателем.",
     "join.tgtext": "Здравствуйте! Хочу записаться на бесплатную диагностику.",
+    "join.or": "или",
+    "join.free": "Попробовать платформу бесплатно",
+    "join.freenote": "Бесплатный аккаунт: Пробник 1 и 2 сета на Problem Solving, с полными результатами.",
     "foot.tg": "Канал в Telegram",
     "foot.login": "Вход на платформу"
   }
@@ -118,6 +125,7 @@ function applyLang(next) {
 }
 
 $$(".lang button").forEach(b => b.addEventListener("click", () => { store.set("nuetoqy-lang", b.dataset.lang); applyLang(b.dataset.lang); }));
+if (CONFIG.SIGNUP_ENABLED === true && !signedIn) $("#freeTry").hidden = false;
 
 const bar = $("#bar");
 new IntersectionObserver(([e]) => bar.classList.toggle("solid", !e.isIntersecting), { rootMargin: "-40% 0px 0px 0px" }).observe($(".gate-in"));

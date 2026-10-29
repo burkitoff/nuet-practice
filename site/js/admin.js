@@ -48,7 +48,7 @@ export async function showClass(root, ctx) {
   let grp = "";
 
   function render() {
-    const studs = students.filter(s => !grp || s.group_code === grp);
+    const studs = students.filter(s => !grp || (grp === "__none" ? !s.group_code : s.group_code === grp));
     const subs = [...new Set(all.map(d => d.subcategory))].sort((a, b) => {
       const ca = all.find(d => d.subcategory === a).category, cb = all.find(d => d.subcategory === b).category;
       return ca.localeCompare(cb) || a.localeCompare(b);
@@ -64,7 +64,7 @@ export async function showClass(root, ctx) {
 
     body.innerHTML = `
       <div class="toolbar">
-        <select id="grp"><option value="">All groups</option>${groups.map(g => `<option ${g.code === grp ? "selected" : ""}>${esc(g.code)}</option>`).join("")}</select>
+        <select id="grp"><option value="">All groups</option>${groups.map(g => `<option ${g.code === grp ? "selected" : ""}>${esc(g.code)}</option>`).join("")}${isAdm(ctx) ? `<option value="__none" ${grp === "__none" ? "selected" : ""}>No group (sign-ups)</option>` : ""}</select>
         <span class="muted small">${studs.length} students · ${cls.n} answers · ${fmtPct(cls.acc)} correct</span>
         <span class="grow"></span>
         ${isAdm(ctx) ? `<button class="btn btn-sm" id="csvSum">Download summary (CSV)</button>
@@ -227,9 +227,10 @@ export async function showStudents(root, ctx) {
         <form id="grpForm" class="inline-form"><input name="code" placeholder="Code, e.g. NC070" required pattern="[A-Za-z0-9_\\-]{1,32}"><input name="label" placeholder="Label (optional)"><button class="btn btn-sm">Add group</button></form>
       </div>
     </div>
-    <section class="card"><h2>Accounts (${studs.length})</h2>
+    <section class="card"><div class="card-head"><h2>Accounts (${studs.length})</h2>
+      <select id="accF"><option value="">Everyone</option><option value="centre">Centre (created by you)</option><option value="signup">Signed up themselves (${studs.filter(x => x.self_signup).length})</option><option value="unconfirmed">Email not confirmed (${studs.filter(x => x.self_signup && !x.confirmed).length})</option></select></div>
       <div class="scroll-x"><table class="tbl"><thead><tr><th>Name</th><th>Username</th><th>Group</th><th>Tier</th><th>Level</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody>
-      ${studs.map(s => `<tr data-id="${s.id}"><td><b>${esc(s.display_name)}</b></td><td><code>${esc(s.username)}</code></td>
+      ${studs.map(s => `<tr data-id="${s.id}" data-kind="${s.self_signup ? (s.confirmed ? "signup" : "signup unconfirmed") : "centre"}"><td><b>${esc(s.display_name)}</b>${s.self_signup ? `<div class="small muted">${[s.email, s.signup_info?.telegram, s.signup_info?.city, s.signup_info?.school, s.signup_info?.grade ? "grade " + s.signup_info.grade : ""].filter(Boolean).map(esc).join(" · ")}${s.confirmed ? "" : ' <span class="pill pill-warn">email not confirmed</span>'} <span class="pill">signed up ${esc(fmtDate(s.created_at, false))}</span></div>` : ""}</td><td><code>${esc(s.username)}</code></td>
         <td>${s.role === "teacher" ? `<span class="small">${esc(tgOf(s.id).join(", ") || "no groups")}</span>` : s.role === "admin" ? "" : `<select data-setgroup="${s.id}">${grpOpts(s.group_code)}</select>`}</td>
         <td>${s.role === "student" ? `<select data-settier="${s.id}">${tierOpts(s.tier)}</select>` : ""}</td>
         <td>${s.role === "student" ? `<select data-setlevel="${s.id}">${levelSel(s.skill_level)}</select>` : ""}</td>
@@ -263,6 +264,7 @@ export async function showStudents(root, ctx) {
       if (created) showStudents(root, ctx); else btn.disabled = false;
     }
   };
+  $("#accF", body).onchange = e => $$("tr[data-kind]", body).forEach(tr => (tr.hidden = !!e.target.value && !tr.dataset.kind.split(" ").includes(e.target.value)));
   const addF = $("#addForm", body);
   addF.kind.onchange = () => $$("[data-for]", addF).forEach(el => (el.hidden = el.dataset.for !== addF.kind.value));
   $("#grpForm", body).onsubmit = async e => {
@@ -503,7 +505,7 @@ export async function showMockEdit(root, id, ctx) {
         <label>Description (optional)<input name="description" value="${esc(m.description)}"></label>
         <label>Time limit (minutes)<input name="minutes" type="number" min="1" max="240" value="${Math.round(m.time_limit_sec / 60)}" required></label>
         <fieldset ${ser ? "hidden" : ""}><legend>Who can take it without an assignment</legend>
-          <label class="check"><input type="checkbox" name="everyone" ${m.group_codes ? "" : "checked"}> Everyone</label>
+          <label class="check"><input type="checkbox" name="everyone" ${m.group_codes ? "" : "checked"}> Everyone with full access <span class="muted small">(not free sign-ups)</span></label>
           ${groups.map(g => `<label class="check"><input type="checkbox" name="grp" value="${esc(g.code)}" ${m.group_codes?.includes(g.code) ? "checked" : ""}> ${esc(g.code)}</label>`).join("")}
         </fieldset>
         <label>Attempts allowed per student<input name="max_attempts" type="number" min="1" max="20" value="${m.max_attempts}"></label>
@@ -760,9 +762,10 @@ export async function showAccess(root, ctx) {
   const count = (s) => mocks.filter(m => m.series_id === s.id).length;
   body.innerHTML = `
     <section class="card"><h2>Access tiers</h2>
-      <p class="muted small">A tier decides how many mocks of each library series a student can open: the first N, in order. Mocks you assign directly don't count. “Unlimited” opens everything.</p>
-      <div class="scroll-x"><table class="tbl tier-tbl"><thead><tr><th>Code</th><th>Name</th><th>Unlimited</th>${series.map(s => `<th>${esc(s.title)} <span class="muted">/ ${count(s)}</span></th>`).join("")}<th>Students</th><th></th></tr></thead><tbody>
-      ${tiers.map(t => `<tr data-tier="${esc(t.code)}"><td><code>${esc(t.code)}</code></td><td><input name="label" value="${esc(t.label)}" maxlength="60"></td>
+      <p class="muted small">A plan (tier) decides how many mocks of each library series a student can open: the first N, in order. Mocks you assign directly don't count. “Unlimited” opens everything. Students see the name and description at the top of every page; people who sign up themselves get the plan marked under “Sign-ups”.</p>
+      <div class="scroll-x"><table class="tbl tier-tbl"><thead><tr><th>Code</th><th>Name &amp; description <span class="muted">(students see these)</span></th><th title="People who sign up themselves get this plan">Sign-ups</th><th>Unlimited</th>${series.map(s => `<th>${esc(s.title)} <span class="muted">/ ${count(s)}</span></th>`).join("")}<th>Students</th><th></th></tr></thead><tbody>
+      ${tiers.map(t => `<tr data-tier="${esc(t.code)}"><td><code>${esc(t.code)}</code></td><td><input name="label" value="${esc(t.label)}" maxlength="60"><textarea name="desc" rows="2" maxlength="400" placeholder="What this plan includes">${esc(t.description || "")}</textarea></td>
+        <td><input type="radio" name="signupDefault" value="${esc(t.code)}" ${t.signup_default ? "checked" : ""}></td>
         <td><input type="checkbox" name="unlimited" ${t.unlimited ? "checked" : ""}></td>
         ${series.map(s => `<td><input type="number" min="0" max="${count(s)}" name="lim" data-s="${esc(s.id)}" value="${t.unlimited ? "" : Number(t.limits?.[s.id] ?? 0)}" placeholder="all" ${t.unlimited ? "disabled" : ""}></td>`).join("")}
         <td>${studs.filter(x => x.tier === t.code).length}</td>
@@ -785,6 +788,10 @@ export async function showAccess(root, ctx) {
     </section>`;
 
   body.addEventListener("change", e => {
+    if (e.target.name === "signupDefault") {
+      (async () => { try { for (const t of tiers.filter(x => x.signup_default && x.code !== e.target.value)) await api.updateTier(t.code, { signup_default: false });
+        await api.updateTier(e.target.value, { signup_default: true }); ctx.tiers = await api.tiers(); toast("People who sign up now get this plan", "good"); } catch (err) { toast(err.message, "error"); } })();
+    }
     if (e.target.name === "unlimited") e.target.closest("tr").querySelectorAll('[name="lim"]').forEach(x => { x.disabled = e.target.checked; if (!x.disabled && x.value === "") x.value = 0; });
   });
   body.onclick = async e => {
@@ -793,7 +800,8 @@ export async function showAccess(root, ctx) {
       if (st) {
         const tr = st.closest("tr");
         const limits = Object.fromEntries($$('[name="lim"]', tr).map(x => [x.dataset.s, Math.max(0, Math.floor(+x.value || 0))]));
-        await api.saveTier({ code: tr.dataset.tier, label: $('[name="label"]', tr).value.trim() || tr.dataset.tier, unlimited: $('[name="unlimited"]', tr).checked, limits });
+        await api.saveTier({ code: tr.dataset.tier, label: $('[name="label"]', tr).value.trim() || tr.dataset.tier, description: $('[name="desc"]', tr).value.trim(), unlimited: $('[name="unlimited"]', tr).checked, limits });
+        ctx.tiers = await api.tiers();
         toast("Tier saved", "good");
       }
       if (dt) {

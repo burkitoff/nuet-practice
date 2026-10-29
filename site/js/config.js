@@ -6,4 +6,7 @@ export const CONFIG = {
   IMAGE_SCALE: 0.35,
   IDLE_AFTER_SEC: 180,
   APP_NAME: "NUET Oqy",
+  SIGNUP_ENABLED: false,
+  TURNSTILE_SITE_KEY: "",
+  TELEGRAM: "burkitoff",
 };

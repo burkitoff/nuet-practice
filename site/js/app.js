@@ -1,12 +1,13 @@
 import { api } from "./api.js";
 import { CONFIG } from "./config.js";
 import { $, esc, toast } from "./util.js";
-import { showLogin, showHome, showPractice, showAccount } from "./views.js";
+import { showHome, showPractice, showAccount } from "./views.js";
+import { showAuth, showLogin, showNewPassword, authText } from "./auth.js";
 import { runAttempt } from "./runner.js";
 import { showAttempt } from "./results.js";
 import { showStats } from "./stats.js";
 import { showClass, showStudents, showMocks, showMockEdit, showMockResults, showQuestions, showCleanup, showAccess, showPaper, clearAdminCache } from "./admin.js";
-import { showMocksPage } from "./library.js";
+import { showMocksPage, myTier, upgradeUrl } from "./library.js";
 
 const app = $("#app");
 const ctx = { me: null, taxonomy: [], labels: {}, go, idleSec: CONFIG.IDLE_AFTER_SEC };
@@ -28,7 +29,7 @@ function shell(active) {
       ${admin ? `<a href="#/admin/class" class="${active === "admin" ? "on" : ""}">Admin</a>` : ""}
       ${teacher ? `<a href="#/teach" class="${active === "admin" ? "on" : ""}">My groups</a>` : ""}
     </nav>
-    <div class="who"><a href="#/account" title="Account">${esc(ctx.me.display_name || ctx.me.username)}</a>
+    <div class="who">${ctx.me.role === "student" ? planChip() : ""}<a href="#/account" title="Account">${esc(ctx.me.display_name || ctx.me.username)}</a>
       <button class="btn btn-ghost btn-sm" id="logout">Log out</button></div>
   </header>
   <main id="view"></main>`;
@@ -36,8 +37,17 @@ function shell(active) {
   return $("#view");
 }
 
+function planChip() {
+  const t = myTier(ctx);
+  const full = t && t.unlimited;
+  return `<span class="plan-chip ${full ? "is-full" : "is-limited"}" tabindex="0" aria-describedby="planPop">${full ? "✓ " : ""}${esc(t ? t.label : "No plan")}
+    <span class="plan-pop" id="planPop" role="tooltip"><b>${esc(t ? t.label : "No plan yet")}</b>
+      <span>${esc(t ? t.description : "Your account doesn't include library mocks yet.")}</span>
+      ${full ? "" : `<a class="btn btn-primary btn-sm" href="${esc(upgradeUrl(ctx))}" target="_blank" rel="noopener">Get full access</a>`}</span></span>`;
+}
+
 async function route() {
-  if (!ctx.me) return;
+  if (!ctx.me) { if (!authView) return; return showAuth($("#view") || app, { onLogin: afterLogin }); }
   if (restoring && location.hash === shownHash) { restoring = false; return; }
   if (current?.confirmLeave && location.hash !== shownHash && !(await current.confirmLeave())) {
     if (location.hash !== shownHash) { restoring = true; location.hash = shownHash; }
@@ -88,22 +98,32 @@ async function route() {
 }
 
 async function afterLogin() {
+  authView = false;
   ctx.me = await api.me(true);
   if (!ctx.me) throw new Error("Your account has no profile yet. Ask your teacher.");
   ctx.myGroups = ctx.me.role === "teacher" ? await api.myTeacherGroups() : null;
   if (!ctx.me.active) { await api.signOut(); throw new Error("This account is disabled. Ask your teacher."); }
-  [ctx.taxonomy, ctx.levels] = await Promise.all([api.taxonomy(), api.skillLevels()]);
+  [ctx.taxonomy, ctx.levels, ctx.tiers] = await Promise.all([api.taxonomy(), api.skillLevels(), api.tiers()]);
   ctx.labels = Object.fromEntries(ctx.taxonomy.map(t => [t.code, t.label]));
   Object.assign(ctx.labels, { "P:untagged": "Problem Solving (type not tagged yet)", "R:untagged": "Critical Thinking (type not tagged yet)", untagged: "Not tagged yet" });
   route();
 }
 
+let authView = false;
 async function boot() {
+  let red = null;
+  try { red = await api.consumeAuthRedirect(); } catch (_) {}
+  if (red && red.type === "recovery" && await api.session().catch(() => null)) {
+    app.innerHTML = `<main id="view"></main>`;
+    return showNewPassword($("#view"), { onDone: afterLogin });
+  }
   try {
-    if (await api.session()) return await afterLogin();
+    if (await api.session()) { if (red && red.type === "signup") toast(authText("confirmed"), "good"); return await afterLogin(); }
   } catch (e) { toast(e.message, "error"); }
   app.innerHTML = `<main id="view"></main>`;
-  showLogin($("#view"), { onLogin: afterLogin });
+  authView = true;
+  if (red && red.error) return showLogin($("#view"), { onLogin: afterLogin, notice: authText("link_bad") });
+  showAuth($("#view"), { onLogin: afterLogin });
 }
 
 window.addEventListener("hashchange", route);

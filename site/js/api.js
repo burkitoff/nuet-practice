@@ -23,9 +23,29 @@ function createSupabaseApi() {
       const { data } = await sb.auth.getSession();
       return data.session;
     },
-    async signIn(login, password) {
-      must(await sb.auth.signInWithPassword({ email: toEmail(login), password }));
+    async signIn(login, password, captchaToken) {
+      must(await sb.auth.signInWithPassword({ email: toEmail(login), password, options: captchaToken ? { captchaToken } : undefined }));
       profile = null;
+    },
+    async signUp(f, captchaToken) {
+      const { email, password, ...info } = f;
+      must(await sb.auth.signUp({ email, password, options: { emailRedirectTo: location.origin + "/app/", data: info, ...(captchaToken ? { captchaToken } : {}) } }));
+    },
+    async resendSignup(email, captchaToken) {
+      must(await sb.auth.resend({ type: "signup", email, options: { emailRedirectTo: location.origin + "/app/", ...(captchaToken ? { captchaToken } : {}) } }));
+    },
+    async resetPassword(email, captchaToken) {
+      must(await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + "/app/", ...(captchaToken ? { captchaToken } : {}) }));
+    },
+    async consumeAuthRedirect() {
+      const h = location.hash.replace(/^#/, "");
+      if (!/(^|&)(access_token|error_description|error)=/.test(h)) return null;
+      const p = new URLSearchParams(h);
+      history.replaceState(null, "", location.pathname + location.search + "#/");
+      if (p.get("error") || p.get("error_description")) return { error: p.get("error_description") || p.get("error") };
+      const { error } = await sb.auth.setSession({ access_token: p.get("access_token"), refresh_token: p.get("refresh_token") });
+      profile = null;
+      return error ? { error: error.message } : { type: p.get("type") || "signup" };
     },
     async signOut() { await sb.auth.signOut(); profile = null; urlCache.clear(); },
     async changePassword(pw) { must(await sb.auth.updateUser({ password: pw })); },
@@ -184,6 +204,7 @@ function createSupabaseApi() {
     async deleteAssignment(id) { must(await sb.from("assignments").delete().eq("id", id)); },
     async sweepAssignments() { must(await sb.rpc("sweep_assignments")); },
     async saveTier(t) { must(await sb.from("tiers").upsert(t)); },
+    async updateTier(code, fields) { must(await sb.from("tiers").update(fields).eq("code", code)); },
     async deleteTier(code) { must(await sb.from("tiers").delete().eq("code", code)); },
     async saveSkillLevel(l) { must(await sb.from("skill_levels").upsert(l)); },
     async itemsFor(attemptIds) {
