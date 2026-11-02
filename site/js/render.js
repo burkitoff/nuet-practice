@@ -15,7 +15,22 @@ if (typeof document !== "undefined") {
 export const LETTERS = ["A", "B", "C", "D", "E"];
 export const lettersFor = q => (q && q.n_options === 4 ? LETTERS.slice(0, 4) : LETTERS);
 
-const inline = s => esc(s).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+const MATH = /\\\((.+?)\\\)|\\\[(.+?)\\\]/gs;
+function tex(src, display) {
+  const k = typeof window !== "undefined" && window.katex;
+  if (!k) return `<span class="tex-raw">${esc(src)}</span>`;
+  try { return k.renderToString(src, { displayMode: display, throwOnError: false, strict: "ignore", trust: false }); }
+  catch (_) { return `<span class="tex-raw">${esc(src)}</span>`; }
+}
+export function rich(s) {
+  const parts = [];
+  const marked = String(s ?? "").replace(MATH, (m, a, b) => { parts.push(a != null ? tex(a, false) : tex(b, true)); return `\u0000${parts.length - 1}\u0000`; });
+  return esc(marked).replace(/\*\*(.+?)\*\*/gs, "<strong>$1</strong>").replace(/\u0000(\d+)\u0000/g, (_, i) => parts[+i]);
+}
+export function richBlock(s) {
+  return String(s ?? "").split("\n").filter(p => p.trim()).map(p => `<p>${rich(p)}</p>`).join("");
+}
+const inline = rich;
 
 export function mediaPaths(q) {
   const p = (q.media || []).map(m => m.path);

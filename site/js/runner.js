@@ -128,7 +128,7 @@ export async function runAttempt(root, attemptId, { go }) {
     try {
       const fresh = await api.mediaUrls([path], true);
       urls[path] = await getPicture(fresh[path], pics.made);
-      if (cur >= 0) draw();
+      if (cur >= 0) draw(true);
     } catch (_) {
       $$(`img[data-path="${CSS.escape(path)}"]`, paper).forEach(im => {
         const b = h("button", { class: "img-retry", type: "button", "data-retry": path }, "Picture didn't load — tap to try again");
@@ -148,7 +148,7 @@ export async function runAttempt(root, attemptId, { go }) {
       </div>`).join("");
   }
 
-  function draw() {
+  function draw(keepScroll = false) {
     const it = S[cur], q = qById[it.question_id];
     paper.style.setProperty("--fs", fontScale);
     paper.innerHTML = renderQuestion(q, urls, {
@@ -157,9 +157,24 @@ export async function runAttempt(root, attemptId, { go }) {
     $("#ebPos", root).innerHTML = `<span class="wide-only">Question </span>${cur + 1}<span class="wide-only"> of </span><span class="narrow-only">/</span>${S.length}`;
     $("#prev", root).disabled = cur === 0;
     $("#next", root).disabled = cur === S.length - 1;
-    const fb = $("#flag", root); fb.classList.toggle("is-on", it.flagged); fb.textContent = it.flagged ? "⚑ Flagged" : "⚑ Flag";
+    drawFlag();
     drawSheet();
-    paper.scrollTop = 0; window.scrollTo({ top: 0 });
+    if (!keepScroll) { paper.scrollTop = 0; window.scrollTo({ top: 0 }); }
+  }
+  function drawFlag() {
+    const it = S[cur], fb = $("#flag", root);
+    fb.classList.toggle("is-on", it.flagged); fb.textContent = it.flagged ? "⚑ Flagged" : "⚑ Flag";
+  }
+  function refresh() {
+    const it = S[cur];
+    paper.querySelectorAll(".opt[data-letter]").forEach(li => {
+      const L = li.dataset.letter;
+      li.classList.toggle("is-chosen", it.answer === L);
+      li.classList.toggle("is-crossed", it.crossed.has(L));
+      li.querySelector("[data-pick]")?.setAttribute("aria-pressed", String(it.answer === L));
+    });
+    drawFlag();
+    drawSheet();
   }
 
   function select(i, L) {
@@ -175,15 +190,15 @@ export async function runAttempt(root, attemptId, { go }) {
       ev(it, "sel", L);
       if (i !== cur) it.events[it.events.length - 1].src = "sheet";
     }
-    if (i === cur) draw(); else drawSheet();
+    if (i === cur) refresh(); else drawSheet();
     scheduleSave();
   }
   function cross(L) {
     const it = S[cur]; if (it.locked || !lettersFor(qById[it.question_id]).includes(L)) return;
     if (it.crossed.has(L)) { it.crossed.delete(L); ev(it, "ux", L); } else { it.crossed.add(L); ev(it, "x", L); }
-    draw();
+    refresh();
   }
-  function flag() { const it = S[cur]; it.flagged = !it.flagged; ev(it, it.flagged ? "flag" : "unflag"); draw(); }
+  function flag() { const it = S[cur]; it.flagged = !it.flagged; ev(it, it.flagged ? "flag" : "unflag"); refresh(); }
 
   let saveTimer = null;
   function scheduleSave() { clearTimeout(saveTimer); saveTimer = setTimeout(save, 2500); }
@@ -265,8 +280,8 @@ export async function runAttempt(root, attemptId, { go }) {
   const leaveBtn = $("#leave", root);
   if (leaveBtn) leaveBtn.onclick = async () => { if (await confirmLeave()) go("#/"); };
   $("#sheetToggle", root).onclick = () => root.querySelector(".exam").classList.toggle("sheet-open");
-  $("#fontUp", root).onclick = () => { fontScale = Math.min(1.4, +(fontScale + 0.1).toFixed(2)); pref("font", fontScale); draw(); };
-  $("#fontDown", root).onclick = () => { fontScale = Math.max(0.8, +(fontScale - 0.1).toFixed(2)); pref("font", fontScale); draw(); };
+  $("#fontUp", root).onclick = () => { fontScale = Math.min(1.4, +(fontScale + 0.1).toFixed(2)); pref("font", fontScale); draw(true); };
+  $("#fontDown", root).onclick = () => { fontScale = Math.max(0.8, +(fontScale - 0.1).toFixed(2)); pref("font", fontScale); draw(true); };
 
   const onKey = e => {
     if (finished || document.querySelector(".modal-back") || e.target.closest("input,textarea,select")) return;

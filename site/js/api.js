@@ -60,8 +60,10 @@ function createSupabaseApi() {
 
     async taxonomy() { return must(await sb.from("taxonomy").select("*").order("sort")); },
     async groups() { return must(await sb.from("groups").select("*").order("code")); },
-    async exams() {
-      const rows = must(await sb.from("questions").select("exam_code").eq("active", true));
+    async exams(subject) {
+      let q = sb.from("questions").select("exam_code").eq("active", true);
+      if (subject) q = q.eq("subject", subject);
+      const rows = must(await q);
       return [...new Set(rows.map(r => r.exam_code))].sort();
     },
     async questions(ids) {
@@ -87,6 +89,12 @@ function createSupabaseApi() {
       return res;
     },
 
+    async solutions(ids) {
+      if (!ids.length) return [];
+      const out = [];
+      for (let i = 0; i < ids.length; i += 100) out.push(...must(await sb.from("solutions").select("*").in("question_id", ids.slice(i, i + 100))));
+      return out;
+    },
     async mocks() { return must(await sb.from("mocks").select("*").order("created_at", { ascending: false })); },
     async myAttempts() {
       const me = await api.me();
@@ -95,7 +103,7 @@ function createSupabaseApi() {
     async startPractice(o) {
       return must(await sb.rpc("start_practice", {
         p_count: o.count, p_category: o.category || null, p_subcategory: o.subcategory || null,
-        p_skill: o.skill || null, p_exam: o.exam || null,
+        p_skill: o.skill || null, p_exam: o.exam || null, p_subject: o.subject || null,
       }));
     },
     async startMock(id) { return must(await sb.rpc("start_mock", { p_mock: id })); },

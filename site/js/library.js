@@ -19,13 +19,18 @@ export async function upgradeDialog(ctx) {
     buttons: [{ label: "Close", value: true }] });
 }
 
-export async function loadLibrary() {
-  const [series, mocks, status, attempts] = await Promise.all([api.series(), api.mocks(), api.myMockStatus(), api.myAttempts()]);
+const subjOf = x => (x && x.subject) || "ct";
+
+export async function loadLibrary(subject = "ct") {
+  const [allSeries, mocks, status, attempts] = await Promise.all([api.series(), api.mocks(), api.myMockStatus(), api.myAttempts()]);
   const mById = Object.fromEntries(mocks.map(m => [m.id, m]));
-  const rows = status.filter(s => mById[s.mock_id]).map(s => ({ ...s, mock: mById[s.mock_id] }));
+  const allRows = status.filter(s => mById[s.mock_id]).map(s => ({ ...s, mock: mById[s.mock_id] }));
+  const rows = allRows.filter(r => subjOf(r.mock) === subject);
+  const series = allSeries.filter(s => subjOf(s) === subject);
+  const otherAssigned = allRows.filter(r => subjOf(r.mock) !== subject && r.assignment_id && !r.closed_at && ["available", "in_progress", "upcoming"].includes(r.state));
   const lastAttempt = id => attempts.find(a => a.mock_id === id && a.status === "submitted");
   const openAttempt = id => attempts.find(a => a.mock_id === id && a.status === "in_progress");
-  return { series, rows, attempts, lastAttempt, openAttempt };
+  return { subject, series, rows, attempts, lastAttempt, openAttempt, otherAssigned };
 }
 
 export function relTime(iso) {
@@ -84,6 +89,15 @@ function assignedCard(lib) {
   }).join("")}</section>`;
 }
 
+export function otherSubjectNote(lib, ctx) {
+  const rs = lib.otherAssigned || [];
+  if (!rs.length) return "";
+  const other = subjOf(rs[0].mock);
+  const name = ctx.subjectName(other);
+  return `<section class="card other-subj"><div class="row-item"><div><b>${rs.length} ${esc(name)} mock${rs.length === 1 ? " is" : "s are"} assigned to you</b>
+    <div class="muted small">${rs.map(r => esc(r.mock.title)).join(", ")}</div></div><button class="btn" data-switch="${other}">Go to ${esc(name)}</button></div></section>`;
+}
+
 export function seriesProgress(lib) {
   return lib.series.map(s => {
     const rs = lib.rows.filter(r => r.series_id === s.id);
@@ -93,14 +107,14 @@ export function seriesProgress(lib) {
 
 export function planBanner(lib, ctx) {
   const t = myTier(ctx), prog = seriesProgress(lib);
-  ctx.libCounts = prog.map(x => (x.s.id === "ps-runs" ? `${x.rs.length} problem-solving runs` : x.s.id === "mocks" ? `${x.rs.length} mocks` : ""));
+  ctx.libCounts = prog.map(x => (x.s.id === "ps-runs" ? `${x.rs.length} problem-solving runs` : x.s.kind === "mock" ? `${x.rs.length} ${lib.subject === "math" ? "Math " : ""}mocks` : ""));
   const name = esc((ctx.me.display_name || ctx.me.username || "").split(" ")[0]);
   const count = (x, one, many) => `${x.rs.length} ${x.rs.length === 1 ? one : many}`;
-  const what = prog.map(x => x.s.id === "ps-runs" ? count(x, "problem-solving run", "problem-solving runs") : x.s.id === "mocks" ? count(x, "mock", "mocks") : `${x.rs.length} × ${esc(x.s.title)}`);
+  const what = prog.map(x => x.s.id === "ps-runs" ? count(x, "problem-solving run", "problem-solving runs") : x.s.kind === "mock" ? count(x, lib.subject === "math" ? "Math mock" : "mock", lib.subject === "math" ? "Math mocks" : "mocks") : `${x.rs.length} × ${esc(x.s.title)}`);
   const list = what.length > 1 ? what.slice(0, -1).join(", ") + " and " + what[what.length - 1] : what[0] || "every mock";
   if (t && t.unlimited) return `<section class="card plan-banner is-full"><div class="pb-mark" aria-hidden="true">✓</div><div>
     <h2>${esc(t.label)}</h2><p>Welcome${name ? ", " + name : ""}! You have full access: all ${list}, plus all practice. Mocks open one at a time, in order${ctx.me.group_code ? "; your teacher may also assign some with a deadline" : ""}.</p></div></section>`;
-  const inc = prog.map(x => `${x.inPlan} of ${x.rs.length} ${x.s.id === "ps-runs" ? "runs" : x.s.id === "mocks" ? "mocks" : esc(x.s.title)}`).join(" · ");
+  const inc = prog.map(x => `${x.inPlan} of ${x.rs.length} ${x.s.id === "ps-runs" ? "runs" : x.s.kind === "mock" ? (lib.subject === "math" ? "Math mocks" : "mocks") : esc(x.s.title)}`).join(" · ");
   return `<section class="card plan-banner"><div><h2>${t ? esc(t.label) : "No plan yet"}</h2>
     <p>${t ? esc(t.description) : "Your account doesn't include library mocks yet."}${inc ? ` <span class="muted small">(${inc})</span>` : ""}</p></div>
     <button class="btn btn-primary" data-upgrade>Get full access</button></section>`;
@@ -108,12 +122,12 @@ export function planBanner(lib, ctx) {
 
 export async function showMocksPage(root, ctx) {
   root.innerHTML = `<div class="loading">Loading…</div>`;
-  const lib = await loadLibrary();
+  const lib = await loadLibrary(ctx.subject);
   const other = lib.rows.filter(r => !r.series_id && !(r.assignment_id && !r.closed_at && ["available", "in_progress", "upcoming"].includes(r.state)));
   root.innerHTML = `<div class="page">
-    <div class="page-head"><h1>Mocks</h1></div>
-    ${ctx.me.role === "student" ? planBanner(lib, ctx) : ""}
-    ${assignedCard(lib)}
+    <div class="page-head"><h1>${lib.subject === "math" ? "Math mocks" : "Mocks"} <span class="pill subj-pill">${esc(ctx.subjectName(lib.subject))}</span></h1></div>
+    ${ctx.me.role === "student" && lib.rows.length ? planBanner(lib, ctx) : ""}
+    ${assignedCard(lib)}${otherSubjectNote(lib, ctx)}
     ${seriesProgress(lib).map(({ s, rs, done, inPlan }) => `<section class="card lib-series">
       <div class="card-head"><h2>${esc(s.title)}</h2><span class="muted small">${done} of ${inPlan} done${inPlan < rs.length ? ` · ${rs.length - inPlan} more with full access` : ""}</span></div>
       ${s.description ? `<p class="muted small">${esc(s.description)}</p>` : ""}
@@ -123,9 +137,11 @@ export async function showMocksPage(root, ctx) {
       return `<div class="row-item"><div><b>${esc(r.mock.title)}</b><div class="muted small">${r.mock.question_ids.length} questions · ${fmtDur(r.time_limit_sec * 1000, { sec: false })}${r.mock.description ? " · " + esc(r.mock.description) : ""}${r.used ? ` · taken ${r.used}×` : ""}</div></div>
         ${r.state === "in_progress" && open ? `<a class="btn" href="#/run/${open.id}">Continue</a>` : r.state === "available" ? `<button class="btn btn-primary" data-start="${r.mock.id}">Start</button>` : last ? `<a class="btn btn-ghost" href="#/attempt/${last.id}">${last.score ?? 0}/${last.total} · Review</a>` : `<span class="muted small">${r.state === "missed" ? "missed" : "done"}</span>`}</div>`;
     }).join("")}</section>` : ""}
-    ${lib.rows.length ? `<p class="muted small lib-legend"><span class="lt-key lt-go"></span> open <span class="lt-key lt-done"></span> done (your score) <span class="lt-key lt-lock"></span> opens after the previous one ${lib.rows.some(r => r.state === "locked_tier") ? '<span class="lt-key lt-plan"></span> full access only' : ""}</p>` : `<div class="card empty"><p class="muted">No mocks yet.</p></div>`}
+    ${lib.rows.length ? `<p class="muted small lib-legend"><span class="lt-key lt-go"></span> open <span class="lt-key lt-done"></span> done (your score) <span class="lt-key lt-lock"></span> opens after the previous one ${lib.rows.some(r => r.state === "locked_tier") ? '<span class="lt-key lt-plan"></span> full access only' : ""}</p>` : `<div class="card empty"><p class="muted">No ${lib.subject === "math" ? "Math " : ""}mocks yet.</p></div>`}
   </div>`;
   root.onclick = e => {
+    const sw = e.target.closest("[data-switch]");
+    if (sw) return ctx.setSubject(sw.dataset.switch);
     const b = e.target.closest("[data-start]");
     if (b) startMockFlow(lib.rows.find(r => r.mock.id === b.dataset.start), ctx);
     if (e.target.closest("[data-upgrade]")) upgradeDialog(ctx);
@@ -136,7 +152,7 @@ async function weakestType(ctx) {
   const { attempts, items } = await api.statsData(ctx.me.id);
   if (items.length < 10) return null;
   const qmeta = await loadQuestionMeta(items.map(i => i.question_id));
-  const ds = deriveItems(attempts, items, qmeta).filter(d => d.category !== "?");
+  const ds = deriveItems(attempts, items, qmeta).filter(d => d.category !== "?" && d.subject === ctx.subject);
   const rows = [...groupBy(ds, d => d.subcategory)].map(([k, g]) => ({ k, cat: g[0].category, ...summarize(g) }))
     .filter(r => r.n >= 5 && r.acc < 75).sort((a, b) => a.acc - b.acc);
   return rows[0] || null;
@@ -171,7 +187,7 @@ export async function nextStepCard(el, lib, ctx) {
     if (p) {
       p.disabled = true;
       const o = JSON.parse(p.dataset.weak);
-      api.startPractice({ count: 10, ...o }).then(id => ctx.go(`#/run/${id}`)).catch(err => {
+      api.startPractice({ count: 10, ...o, subject: ctx.subject }).then(id => ctx.go(`#/run/${id}`)).catch(err => {
         toast(/no questions/.test(err.message) ? "No more practice questions of this type yet — try a mock first." : err.message, "error"); p.disabled = false; });
     }
   };

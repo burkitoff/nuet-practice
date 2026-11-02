@@ -10,17 +10,31 @@ import { showClass, showStudents, showMocks, showMockEdit, showMockResults, show
 import { showMocksPage, myTier, upgradeUrl } from "./library.js";
 
 const app = $("#app");
-const ctx = { me: null, taxonomy: [], labels: {}, go, idleSec: CONFIG.IDLE_AFTER_SEC };
+const SUBJECTS = [["ct", "Critical Thinking", "CT"], ["math", "Math", "Math"]];
+const readSubject = () => { try { const v = localStorage.getItem("nuetoqy-subject"); return SUBJECTS.some(x => x[0] === v) ? v : "ct"; } catch (_) { return "ct"; } };
+const ctx = { me: null, taxonomy: [], labels: {}, go, idleSec: CONFIG.IDLE_AFTER_SEC, subject: readSubject(), subjectName: k => (SUBJECTS.find(x => x[0] === k) || SUBJECTS[0])[1], setSubject };
 let current = null;
 let shownHash = location.hash, restoring = false;
 
 function go(hash) { if (location.hash === hash) route(); else location.hash = hash; }
+
+function setSubject(k) {
+  if (!SUBJECTS.some(x => x[0] === k) || k === ctx.subject) return;
+  ctx.subject = k;
+  try { localStorage.setItem("nuetoqy-subject", k); } catch (_) {}
+  const [p0, p1] = (location.hash.replace(/^#\/?/, "") || "").split("/");
+  const staff = p0 === "admin" || p0 === "teach";
+  if (p0 === "attempt") go("#/");
+  else if (staff && ["mock", "mock-edit", "paper"].includes(p1)) go(`#/${p0}/mocks`);
+  else route();
+}
 
 function shell(active) {
   const admin = ctx.me.role === "admin", teacher = ctx.me.role === "teacher";
   app.innerHTML = `
   <header class="topbar">
     <a class="brand" href="#/" aria-label="${esc(CONFIG.APP_NAME)} home"><img src="/img/logo.svg" alt="${esc(CONFIG.APP_NAME)}" width="125" height="36"></a>
+    <div class="subj" role="group" aria-label="Subject">${SUBJECTS.map(([k, l, sh]) => `<button type="button" class="${ctx.subject === k ? "on" : ""}" data-subject="${k}" aria-pressed="${ctx.subject === k}" title="${esc(l)}"><span class="subj-long">${esc(l)}</span><span class="subj-short">${esc(sh)}</span></button>`).join("")}</div>
     <nav>
       <a href="#/" class="${active === "home" ? "on" : ""}">Home</a>
       ${teacher ? "" : `<a href="#/mocks" class="${active === "mocks" ? "on" : ""}">Mocks</a>`}
@@ -33,6 +47,7 @@ function shell(active) {
       <button class="btn btn-ghost btn-sm" id="logout">Log out</button></div>
   </header>
   <main id="view"></main>`;
+  app.querySelectorAll("[data-subject]").forEach(b => (b.onclick = () => setSubject(b.dataset.subject)));
   $("#logout").onclick = async () => { await current?.destroy?.(); current = null; await api.signOut(); ctx.me = null; clearAdminCache(); location.hash = "#/"; boot(); };
   return $("#view");
 }

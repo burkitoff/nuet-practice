@@ -22,7 +22,11 @@ export async function showStats(root, userId, ctx) {
   const L = ctx.labels;
   let who = ctx.me;
   if (userId !== ctx.me.id) who = (await api.profiles()).find(p => p.id === userId) || { display_name: "Student" };
-  const { attempts, items } = await api.statsData(userId);
+  const subj = ctx.subject;
+  const data = await api.statsData(userId);
+  const attempts = data.attempts.filter(a => (a.subject || "ct") === subj);
+  const aIds = new Set(attempts.map(a => a.id));
+  const items = data.items.filter(i => aIds.has(i.attempt_id));
   const qmeta = await loadQuestionMeta(items.map(i => i.question_id));
   const all = deriveItems(attempts, items, qmeta);
   let mode = "all", days = 0;
@@ -33,13 +37,13 @@ export async function showStats(root, userId, ctx) {
     const atts = attempts.filter(a => (mode === "all" || a.mode === mode) && Date.parse(a.started_at) >= since);
     const s = summarize(ds);
     const trend = mockTrend(atts, ds);
-    const cats = { P: "Problem Solving", R: "Critical Thinking" };
+    const cats = { P: "Problem Solving", R: "Critical Thinking", ...L };
     const lbl = k => `${esc(L[k] || k)}`;
     const subLbl = k => { const c = ds.find(d => d.subcategory === k)?.category; return `<span class="cat cat-${esc(c)}">${esc(c)}</span> ${lbl(k)}`; };
     const hasSkills = ds.some(d => d.skills.length);
     const th = byThirds(ds);
 
-    $("#statsBody", root).innerHTML = !ds.length ? `<div class="card empty"><p>No finished questions yet${mode !== "all" || days ? " for this filter" : ""}.</p><p><a class="btn btn-primary" href="#/practice">Start practising</a></p></div>` : `
+    $("#statsBody", root).innerHTML = !ds.length ? `<div class="card empty"><p>No finished ${subj === "math" ? "Math " : ""}questions yet${mode !== "all" || days ? " for this filter" : ""}.</p><p><a class="btn btn-primary" href="#/practice">Start practising</a></p></div>` : `
       <div class="tiles">
         <div class="tile"><b>${s.n}</b><span>questions done</span></div>
         <div class="tile"><b>${fmtPct(s.acc)}</b><span>correct</span></div>
@@ -69,7 +73,7 @@ export async function showStats(root, userId, ctx) {
 
   root.innerHTML = `<div class="page">
     <p class="crumbs"><a href="#/">Home</a>${userId !== ctx.me.id ? ` › <a href="${ctx.me.role === "admin" ? "#/admin/class" : "#/teach"}">Class</a>` : ""} › Statistics</p>
-    <div class="page-head"><h1>${userId === ctx.me.id ? "My statistics" : esc(who.display_name || who.username)}</h1>
+    <div class="page-head"><h1>${userId === ctx.me.id ? "My statistics" : esc(who.display_name || who.username)} <span class="pill subj-pill">${esc(ctx.subjectName(subj))}</span></h1>
       <div class="filters">
         <select id="fMode" aria-label="Mode"><option value="all">Mocks + practice</option><option value="mock">Mocks only</option><option value="practice">Practice only</option></select>
         <select id="fDays" aria-label="Period"><option value="0">All time</option><option value="30">Last 30 days</option><option value="7">Last 7 days</option></select>

@@ -38,7 +38,7 @@ export function deriveItems(attempts, items, qmeta = {}) {
     it = { ...it, time_ms: paper ? null : it.time_override_ms ?? it.time_ms };
     out.push({
       ...it, raw_time_ms: rawMs, attempt: a, mode: a.mode, target, status, paper,
-      category: q.category || "?", subcategory: q.subcategory || (q.category ? q.category + ":untagged" : "untagged"), skills: q.skills || [], exam_code: q.exam_code,
+      subject: q.subject || a.subject || "ct", category: q.category || "?", subcategory: q.subcategory || (q.category ? q.category + ":untagged" : "untagged"), skills: q.skills || [], exam_code: q.exam_code,
       rushed: !paper && answered && !it.is_correct && it.time_ms < target * RUSH_FRACTION,
       stuck: !paper && it.time_ms > target * STUCK_FACTOR,
       overTarget: !paper && it.time_ms > target,

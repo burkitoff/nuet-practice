@@ -1,12 +1,14 @@
 import { api } from "./api.js";
 import { $, esc, fmtDur, fmtDate, pct, fmtPct, toast } from "./util.js";
-import { loadLibrary, seriesProgress, assignedCard, startMockFlow, nextStepCard } from "./library.js";
+import { loadLibrary, seriesProgress, assignedCard, otherSubjectNote, startMockFlow, nextStepCard } from "./library.js";
 
 export async function showHome(root, ctx) {
   root.innerHTML = `<div class="loading">Loading…</div>`;
   await api.finalizeExpired().catch(() => {});
   const teacher = ctx.me.role === "teacher";
-  const [attempts, lib] = await Promise.all([api.myAttempts(), teacher ? null : loadLibrary()]);
+  const subj = ctx.subject;
+  const [allAttempts, lib] = await Promise.all([api.myAttempts(), teacher ? null : loadLibrary(subj)]);
+  const attempts = allAttempts.filter(a => (a.subject || "ct") === subj);
   const open = attempts.filter(a => a.status === "in_progress" && a.mode === "mock");
   const done = attempts.filter(a => a.status === "submitted");
   const recentQs = done.reduce((s, a) => s + a.total, 0);
@@ -14,11 +16,11 @@ export async function showHome(root, ctx) {
   const prog = lib ? seriesProgress(lib) : [];
 
   root.innerHTML = `<div class="page">
-    <div class="page-head"><h1>Hello, ${esc(ctx.me.display_name || ctx.me.username)}</h1></div>
+    <div class="page-head"><h1>Hello, ${esc(ctx.me.display_name || ctx.me.username)} <span class="pill subj-pill">${esc(ctx.subjectName(subj))}</span></h1></div>
     ${open.length ? `<section class="card attention"><h2>Unfinished</h2>${open.map(a => `
       <div class="row-item"><div><b>${esc(a.title)}</b><div class="muted small">started ${fmtDate(a.started_at)}${a.time_limit_sec ? ` · timer keeps running (${fmtDur(a.time_limit_sec * 1000)} limit)` : ""}</div></div>
       <a class="btn btn-primary" href="#/run/${a.id}">Continue</a></div>`).join("")}</section>` : ""}
-    ${teacher ? "" : `<div id="nextStep"></div>${assignedCard(lib)}`}
+    ${teacher ? "" : `<div id="nextStep"></div>${assignedCard(lib)}${otherSubjectNote(lib, ctx)}`}
 
     <div class="home-grid">
       ${teacher ? `<section class="card">
@@ -27,7 +29,7 @@ export async function showHome(root, ctx) {
         <div class="quick"><a class="btn btn-primary" href="#/teach">Class overview</a><a class="btn" href="#/teach/mocks">Mocks</a></div>
       </section>` : `<section class="card">
         <div class="card-head"><h2>Mock library</h2><a href="#/mocks">All mocks →</a></div>
-        <p class="muted small">Timed tests in exam conditions. Each series opens one mock at a time.</p>
+        <p class="muted small">Timed ${subj === "math" ? "Math " : ""}tests in exam conditions. Each series opens one mock at a time.</p>
         ${prog.length ? prog.map(({ s, done: d, inPlan }) => `<div class="prog-row"><span>${esc(s.title)}</span><span class="prog"><span style="width:${inPlan ? Math.round(100 * d / inPlan) : 0}%"></span></span><span class="muted small">${d}/${inPlan}</span></div>`).join("")
           : `<p class="muted">No mocks yet.</p>`}
       </section>`}
@@ -52,29 +54,32 @@ export async function showHome(root, ctx) {
 
   root.onclick = async e => {
     const mb = e.target.closest("[data-start]"), qb = e.target.closest("[data-quick]");
+    const sw = e.target.closest("[data-switch]");
+    if (sw) return ctx.setSubject(sw.dataset.switch);
     if (mb && !mb.closest("#nextStep")) {
       startMockFlow(lib.rows.find(r => r.mock.id === mb.dataset.start), ctx);
     } else if (qb) {
       qb.disabled = true;
-      try { ctx.go(`#/run/${await api.startPractice({ count: +qb.dataset.quick })}`); } catch (err) { toast(/no questions/.test(err.message) ? "No practice questions left right now — take a mock to unlock more." : err.message, "error"); qb.disabled = false; }
+      try { ctx.go(`#/run/${await api.startPractice({ count: +qb.dataset.quick, subject: subj })}`); } catch (err) { toast(/no questions/.test(err.message) ? "No practice questions left right now — take a mock to unlock more." : err.message, "error"); qb.disabled = false; }
     }
   };
   if (!teacher) nextStepCard($("#nextStep", root), lib, ctx);
 }
 
 export async function showPractice(root, ctx) {
-  const tax = ctx.taxonomy;
-  const exams = ctx.me.role === "student" ? [] : await api.exams();
+  const subj = ctx.subject;
+  const tax = ctx.taxonomy.filter(t => (t.subject || "ct") === subj);
+  const exams = ctx.me.role === "student" ? [] : await api.exams(subj);
   const cats = tax.filter(t => t.tier === "category");
   root.innerHTML = `<div class="page narrow">
     <p class="crumbs"><a href="#/">Home</a> › Practice</p>
-    <h1>Practice set</h1>
+    <h1>${subj === "math" ? "Math practice" : "Practice set"}</h1>
     <form class="card form" id="pf">
       <label>Number of questions
         <select name="count">${[1, 3, 5, 10, 15, 20, 30].map(n => `<option ${n === 5 ? "selected" : ""}>${n}</option>`).join("")}</select></label>
       <label>Section<select name="category"><option value="">Any</option>${cats.map(c => `<option value="${esc(c.code)}">${esc(c.label)}</option>`).join("")}</select></label>
       <label>Question type<select name="subcategory"><option value="">Any</option></select></label>
-      <label>Skill<select name="skill"><option value="">Any</option></select></label>
+      <label ${tax.some(t => t.tier === "skill") ? "" : "hidden"}>Skill<select name="skill"><option value="">Any</option></select></label>
       ${ctx.me.role === "student" ? "" : `<label>From paper<select name="exam"><option value="">Any</option>${exams.map(x => `<option>${esc(x)}</option>`).join("")}</select></label>`}
       <p class="muted small">Questions you have seen least are chosen first.</p>
       <button class="btn btn-primary" type="submit">Start</button>
@@ -92,7 +97,7 @@ export async function showPractice(root, ctx) {
     e.preventDefault();
     const btn = f.querySelector("button"); btn.disabled = true;
     try {
-      ctx.go(`#/run/${await api.startPractice({ count: +f.count.value, category: f.category.value, subcategory: f.subcategory.value, skill: f.skill.value, exam: f.exam ? f.exam.value : "" })}`);
+      ctx.go(`#/run/${await api.startPractice({ count: +f.count.value, category: f.category.value, subcategory: f.subcategory.value, skill: f.skill.value, exam: f.exam ? f.exam.value : "", subject: subj })}`);
     } catch (err) { toast(/no questions/.test(err.message) ? "No questions match — try a wider choice. Questions from mocks join Practice after you've taken that mock." : err.message, "error"); btn.disabled = false; }
   };
 }

@@ -348,3 +348,28 @@ button.lt-plan:hover { border-color: var(--warn); color: var(--warn); }
   .paper-nav #report { order: 5; flex-basis: 100%; justify-content: center; }
   .paper-nav #next { margin-left: auto; }
 }
+
+.subj { display: inline-flex; padding: 3px; gap: 2px; border-radius: 99px; background: var(--surface-2); border: 1px solid var(--line); }
+.subj button { font: 700 13px var(--ui); border: 0; background: transparent; color: var(--ink-2); padding: 5px 12px; border-radius: 99px; cursor: pointer; white-space: nowrap; }
+.subj button.on { background: var(--accent); color: var(--accent-ink); }
+.subj button:not(.on):hover { background: var(--surface); color: var(--ink); }
+.subj button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.subj-short { display: none; }
+.subj-pill { font-size: 12px; vertical-align: middle; margin-left: 4px; }
+h1 .subj-pill { font-family: var(--ui); font-weight: 700; }
+.cat { width: auto; min-width: 18px; padding: 0 3px; box-sizing: border-box; }
+.card.other-subj { padding-top: 6px; padding-bottom: 6px; }
+.card.other-subj .row-item { border-top: 0; }
+.katex { font-size: 1.08em; }
+.q-stem .katex-display, .sol-text .katex-display { margin: .6em 0; overflow-x: auto; overflow-y: hidden; padding: 2px 0; }
+.opt-text .katex { font-size: 1.04em; }
+.tex-raw { font-family: ui-monospace, Menlo, monospace; font-size: .92em; }
+.solution { margin-top: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; }
+.solution summary { cursor: pointer; font-weight: 800; }
+.sol-text { margin-top: 8px; overflow-x: auto; }
+.sol-text p { margin: 0 0 .6em; }
+.sol-img { display: block; max-width: 100%; height: auto; margin-top: 10px; border-radius: 8px; border: 1px solid var(--line); background: #fff; }
+@media (max-width: 860px) {
+  .subj-long { display: none; } .subj-short { display: inline; }
+  .subj button { padding: 4px 10px; }
+}

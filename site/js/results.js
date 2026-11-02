@@ -1,5 +1,5 @@
 import { api } from "./api.js";
-import { renderQuestion, mediaPaths } from "./render.js";
+import { renderQuestion, mediaPaths, richBlock } from "./render.js";
 import { deriveItems, summarize, groupBy, timeline, insights, targetMs } from "./analytics.js";
 import { timelineChart, timeBars, accBar, ratioPill } from "./charts.js";
 import { $, $$, esc, fmtDur, fmtDate, pct, fmtPct, modal, toast } from "./util.js";
@@ -117,7 +117,9 @@ export async function showAttempt(root, id, ctx) {
     </section>
   </div>`;
 
-  let urls = null;
+  let urls = null, sols = null;
+  const solutionHtml = (sol, u) => !sol || (!sol.text && !(sol.images || []).length) ? "" : `<details class="solution" open><summary>Worked solution</summary>
+    ${sol.text ? `<div class="sol-text">${richBlock(sol.text)}</div>` : ""}${(sol.images || []).map(p => `<img class="sol-img" loading="lazy" src="${esc(u[p] || "")}" alt="handwritten solution">`).join("")}</details>`;
   if (isAdmin) {
     $("#exAttempt", root).onchange = async e => {
       const note = e.target.checked ? (await modal({ title: "Reason (optional)", body: `<label>Note<input id="nt" maxlength="200" placeholder="e.g. left the window open"></label>`,
@@ -144,8 +146,14 @@ export async function showAttempt(root, id, ctx) {
     const q = qById[d.question_id];
     if (!q) { det.firstElementChild.innerHTML = `<p class="muted">This question is no longer available.</p>`; det.hidden = false; return; }
     urls = urls || await api.mediaUrls(qs.flatMap(mediaPaths));
+    let sol = null;
+    if (d.correct_answer) {
+      if (!sols) { try { sols = Object.fromEntries((await api.solutions(a.question_ids)).map(x => [x.question_id, x])); } catch (_) { sols = {}; } }
+      sol = sols[q.id] || null;
+      if (sol && (sol.images || []).length) Object.assign(urls, await api.mediaUrls(sol.images).catch(() => ({})));
+    }
     det.firstElementChild.innerHTML = `<div class="detail-grid">
-      <div class="paper paper-small">${renderQuestion(q, urls, { number: pos, answer: d.answer, crossed: new Set(d.crossed), correct: d.correct_answer })}</div>
+      <div><div class="paper paper-small">${renderQuestion(q, urls, { number: pos, answer: d.answer, crossed: new Set(d.crossed), correct: d.correct_answer })}</div>${solutionHtml(sol, urls)}</div>
       <div><h3>What happened</h3>${eventLog(d.events)}
       ${staff ? `<p class="muted small">${esc(q.id)}${d.note ? ` · note: ${esc(d.note)}` : ""}</p>` : `<p><button class="btn btn-ghost btn-sm" data-report="${esc(q.id)}">Report a problem with this question</button></p>`}</div></div>`;
     det.hidden = false;

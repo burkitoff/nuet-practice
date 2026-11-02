@@ -9,10 +9,12 @@ const TABS = [["class", "Class"], ["cleanup", "Data clean-up"], ["students", "St
 const TEACH_TABS = [["class", "Class"], ["mocks", "Mocks"]];
 const isAdm = ctx => ctx.me.role === "admin";
 const P = ctx => (isAdm(ctx) ? "#/admin" : "#/teach");
+const subjOf = x => (x && x.subject) || "ct";
+const inSubj = ctx => x => subjOf(x) === ctx.subject;
 
 function frame(root, tab, ctx, inner) {
   root.innerHTML = `<div class="page wide">
-    <div class="page-head"><h1>${isAdm(ctx) ? "Admin" : "My groups"}</h1>
+    <div class="page-head"><h1>${isAdm(ctx) ? "Admin" : "My groups"} <span class="pill subj-pill">${esc(ctx.subjectName(ctx.subject))}</span></h1>
       <nav class="tabs">${(isAdm(ctx) ? TABS : TEACH_TABS).map(([k, l]) => `<a href="${P(ctx)}/${k}" class="${k === tab ? "on" : ""}">${l}</a>`).join("")}</nav></div>
     <div id="adminBody">${inner || `<div class="loading">Loading…</div>`}</div></div>`;
   return $("#adminBody", root);
@@ -40,7 +42,10 @@ export async function showClass(root, ctx) {
   const body = frame(root, "class", ctx);
   const { profiles, groups: allGroups, qById } = await base(true);
   const groups = isAdm(ctx) ? allGroups : allGroups.filter(g => ctx.myGroups.includes(g.code));
-  const { attempts, items } = await api.statsData("*");
+  const sd = await api.statsData("*");
+  const attempts = sd.attempts.filter(inSubj(ctx));
+  const aIds = new Set(attempts.map(a => a.id));
+  const items = sd.items.filter(i => aIds.has(i.attempt_id));
   const all = deriveItems(attempts, items, qById);
   const L = ctx.labels;
   const students = profiles.filter(p => p.role === "student");
@@ -333,12 +338,15 @@ async function mockData(ctx, force) {
   const aState = a => (a.closed_at ? "finished" : Date.parse(a.opens_at) > Date.now() ? "upcoming" : "open");
   const pBy = Object.fromEntries(b.profiles.map(p => [p.id, p]));
   const who = a => tOf(a).map(t => (t.group_code ? `<span class="pill">${esc(t.group_code)}</span>` : esc(pBy[t.user_id]?.display_name || "student"))).join(" ") || '<span class="muted">nobody</span>';
-  return { ...b, mocks, series, assigns, targets, atts, skips, students, groups, tOf, studentsOf, submitted, aState, pBy, who };
+  const mById = Object.fromEntries(mocks.map(m => [m.id, m]));
+  const sMocks = mocks.filter(inSubj(ctx)), sSeries = series.filter(inSubj(ctx));
+  const sAssigns = assigns.filter(a => !mById[a.mock_id] || subjOf(mById[a.mock_id]) === ctx.subject);
+  return { ...b, mocks, series, assigns, targets, atts, skips, students, groups, tOf, studentsOf, submitted, aState, pBy, who, sMocks, sSeries, sAssigns };
 }
 
 function mockOptions(D, sel) {
-  const bySeries = D.series.map(s => [s.title, D.mocks.filter(m => m.series_id === s.id).sort((a, b) => a.seq - b.seq)]).filter(x => x[1].length);
-  const other = D.mocks.filter(m => !m.series_id);
+  const bySeries = D.sSeries.map(s => [s.title, D.sMocks.filter(m => m.series_id === s.id).sort((a, b) => a.seq - b.seq)]).filter(x => x[1].length);
+  const other = D.sMocks.filter(m => !m.series_id);
   const opt = m => `<option value="${m.id}" ${m.id === sel ? "selected" : ""}>${esc(m.title)} · ${m.question_ids.length} Qs</option>`;
   return bySeries.map(([t, ms]) => `<optgroup label="${esc(t)}">${ms.map(opt).join("")}</optgroup>`).join("") + (other.length ? `<optgroup label="Other mocks">${other.map(opt).join("")}</optgroup>` : "");
 }
@@ -388,7 +396,7 @@ export async function showMocks(root, ctx, sub) {
     const poolIds = pool.map(s => s.id);
     const inFilter = a => !grp || D.tOf(a).some(t => t.group_code === grp || pool.some(s => s.id === t.user_id));
     const head = `<div class="toolbar">
-      <nav class="tabs subtabs">${SUBS.map(([k, l]) => `<a href="${pre}/mocks/${k}" class="${k === sub ? "on" : ""}">${l}${k === "assignments" ? ` <span class="count">${D.assigns.filter(a => D.aState(a) !== "finished").length}</span>` : ""}</a>`).join("")}</nav>
+      <nav class="tabs subtabs">${SUBS.map(([k, l]) => `<a href="${pre}/mocks/${k}" class="${k === sub ? "on" : ""}">${l}${k === "assignments" ? ` <span class="count">${D.sAssigns.filter(a => D.aState(a) !== "finished").length}</span>` : ""}</a>`).join("")}</nav>
       <span class="grow"></span>
       <select id="grpF"><option value="">All ${adm ? "groups" : "my groups"}</option>${D.groups.map(g => `<option ${g.code === grp ? "selected" : ""}>${esc(g.code)}</option>`).join("")}</select>
       ${adm && sub !== "custom" ? `<button class="btn btn-primary" id="newA">Assign a mock</button>` : ""}
@@ -397,7 +405,7 @@ export async function showMocks(root, ctx, sub) {
 
     const mockRow = m => {
       const q = m.question_ids.map(id => D.qById[id]).filter(Boolean);
-      const nR = q.filter(x => x.category === "R").length, nP = q.filter(x => x.category === "P").length;
+      const nR = subjOf(m) === "ct" ? q.filter(x => x.category === "R").length : 0, nP = subjOf(m) === "ct" ? q.filter(x => x.category === "P").length : 0;
       const sub_ = D.atts.filter(x => x.mock_id === m.id && x.status === "submitted" && poolIds.includes(x.user_id));
       const people = D.submitted(m.id, poolIds).size;
       const avg = sub_.length ? Math.round(sub_.reduce((t, x) => t + pct(x.score, x.total), 0) / sub_.length) : null;
@@ -411,19 +419,19 @@ export async function showMocks(root, ctx, sub) {
     const mockTable = ms => `<div class="scroll-x"><table class="tbl lib-tbl"><thead><tr><th>#</th><th>Mock</th><th>Qs</th><th>Time</th><th title="Students (in the filter) who have submitted it">Done by</th><th>Avg score</th><th></th></tr></thead><tbody>${ms.map(mockRow).join("")}</tbody></table></div>`;
 
     if (sub === "library") {
-      const groupsOfSeries = D.series.map(s => [s, D.mocks.filter(m => m.series_id === s.id).sort((a, b) => a.seq - b.seq)]).filter(x => x[1].length);
+      const groupsOfSeries = D.sSeries.map(s => [s, D.sMocks.filter(m => m.series_id === s.id).sort((a, b) => a.seq - b.seq)]).filter(x => x[1].length);
       html = groupsOfSeries.length ? groupsOfSeries.map(([s, ms], i) => {
         const doneAll = ms.filter(m => pool.length && D.submitted(m.id, poolIds).size === pool.length).length;
         return `<details class="card series-card" ${i === 0 || sessionStorage.getItem("nuet-open-" + s.id) === "1" ? "open" : ""} data-series="${esc(s.id)}">
           <summary><h2>${esc(s.title)}</h2><span class="muted small">${ms.length} mocks · ${fmtDur(ms[0].time_limit_sec * 1000, { sec: false })} each${pool.length ? ` · ${doneAll} done by everyone${grp ? " in " + esc(grp) : ""}` : ""}</span></summary>
           ${s.description ? `<p class="muted small">${esc(s.description)}</p>` : ""}${mockTable(ms)}</details>`;
-      }).join("") : `<div class="card empty"><p class="muted">The library is empty. Run the library SQL (006b) in Supabase to add the Oxford mocks and problem-solving runs.</p></div>`;
+      }).join("") : `<div class="card empty"><p class="muted">${ctx.subject === "math" ? "No Math mocks yet. Run the Math import and 007b_math_library.sql (see UPDATE-7)." : "The library is empty. Run the library SQL (006b) in Supabase to add the Oxford mocks and problem-solving runs."}</p></div>`;
     } else if (sub === "custom") {
-      const ms = D.mocks.filter(m => !m.series_id);
+      const ms = D.sMocks.filter(m => !m.series_id);
       html = `<section class="card">${ms.length ? mockTable(ms) : `<p class="muted">No other mocks. Library mocks are under “Library”.</p>`}</section>`;
     } else {
       const want = sub === "finished" ? ["finished"] : ["open", "upcoming"];
-      const list = D.assigns.filter(a => want.includes(D.aState(a)) && inFilter(a));
+      const list = D.sAssigns.filter(a => want.includes(D.aState(a)) && inFilter(a));
       const row = a => {
         const m = D.mocks.find(x => x.id === a.mock_id) || { title: "(deleted mock)", question_ids: [] };
         const studs = D.studentsOf(a).filter(s => poolIds.includes(s.id) || !grp);
@@ -489,15 +497,16 @@ export async function showMockEdit(root, id, ctx) {
   const body = frame(root, "mocks", ctx);
   const { groups, questions, qById } = await base(true);
   const L = ctx.labels;
-  const active = questions.filter(q => q.active);
-  const exams = [...new Set(active.map(q => q.exam_code))].sort();
   const existing = id !== "new" ? (await api.mocks()).find(m => m.id === id) : null;
-  const m = existing ? { ...existing } : { title: "", description: "", time_limit_sec: 3600, question_ids: [], group_codes: null, published: false, show_review: true, reserve_questions: true, max_attempts: 1, series_id: null, seq: null };
+  const m = existing ? { ...existing } : { title: "", description: "", time_limit_sec: 3600, question_ids: [], group_codes: null, published: false, show_review: true, reserve_questions: true, max_attempts: 1, series_id: null, seq: null, subject: ctx.subject };
+  const subj = subjOf(m), isCt = subj === "ct";
+  const active = questions.filter(q => q.active && subjOf(q) === subj);
+  const exams = [...new Set(active.map(q => q.exam_code))].sort();
   const ser = m.series_id ? (await api.series()).find(x => x.id === m.series_id) : null;
   let list = [...m.question_ids];
 
   body.innerHTML = `
-    <p class="crumbs"><a href="#/admin/mocks/${m.series_id ? "library" : "custom"}">Mocks</a> › ${existing ? "Edit" : "New mock"}</p>
+    <p class="crumbs"><a href="#/admin/mocks/${m.series_id ? "library" : "custom"}">Mocks</a> › ${existing ? "Edit" : `New ${isCt ? "Critical Thinking" : "Math"} mock`}</p>
     ${ser ? `<p class="note">Library mock: <b>${esc(ser.title)}</b> #${m.seq}. Students open it in order and only if their tier includes it; to give it to someone directly, use <b>Assign</b>.</p>` : ""}
     <div class="two-col">
       <form class="card form" id="mf">
@@ -518,7 +527,7 @@ export async function showMockEdit(root, id, ctx) {
       <div class="card"><h2>Questions <span class="muted small" id="qcount"></span></h2>
         <div class="builder">
           <div><b>Whole paper</b><div class="inline-form"><select id="bExam">${exams.map(x => `<option>${esc(x)}</option>`).join("")}</select><button class="btn btn-sm" type="button" id="bExamGo">Use this paper</button></div></div>
-          <div><b>Balanced random mix</b><div class="inline-form"><input id="bN" type="number" min="1" max="100" value="30" title="How many"> questions, <input id="bP" type="number" min="0" max="100" value="50" title="% Problem Solving">% Problem Solving
+          <div><b>Balanced random mix</b><div class="inline-form"><input id="bN" type="number" min="1" max="100" value="30" title="How many"> questions${isCt ? `, <input id="bP" type="number" min="0" max="100" value="50" title="% Problem Solving">% Problem Solving` : ", spread over the topics"}
             <button class="btn btn-sm" type="button" id="bMix">Generate</button></div>
             <label class="check small"><input type="checkbox" id="bUnused" checked> avoid questions already used in other mocks</label></div>
           <div><b>Pick by hand</b><div class="inline-form"><select id="bFilterExam"><option value="">Any paper</option>${exams.map(x => `<option>${esc(x)}</option>`).join("")}</select>
@@ -533,7 +542,7 @@ export async function showMockEdit(root, id, ctx) {
   const allMocks = await api.mocks();
   const usedElsewhere = new Set(allMocks.filter(x => x.id !== m.id).flatMap(x => x.question_ids));
   const drawList = () => {
-    $("#qcount", body).textContent = `(${list.length}${list.length ? `, ${list.filter(q => qById[q]?.category === "P").length} P / ${list.filter(q => qById[q]?.category === "R").length} R` : ""})`;
+    $("#qcount", body).textContent = `(${list.length}${list.length && isCt ? `, ${list.filter(q => qById[q]?.category === "P").length} P / ${list.filter(q => qById[q]?.category === "R").length} R` : ""})`;
     $("#qlist", body).innerHTML = list.map((qid, i) => { const q = qById[qid] || {}; return `<li><a href="#" data-prev="${esc(qid)}">${esc(qid)}</a> <span class="cat cat-${esc(q.category)}">${esc(q.category || "?")}</span> <span class="small muted">${esc(L[q.subcategory] || q.subcategory || "")}</span>
       <span class="grow"></span><button type="button" class="btn btn-ghost btn-sm" data-up="${i}" ${i ? "" : "disabled"}>↑</button><button type="button" class="btn btn-ghost btn-sm" data-rm="${i}">✕</button></li>`; }).join("") || `<li class="muted">None yet — use one of the options above.</li>`;
     drawPicker();
@@ -547,14 +556,19 @@ export async function showMockEdit(root, id, ctx) {
 
   $("#bExamGo", body).onclick = () => { list = active.filter(q => q.exam_code === $("#bExam", body).value).sort((a, b) => a.qnum - b.qnum).map(q => q.id); drawList(); };
   $("#bMix", body).onclick = () => {
-    const n = +$("#bN", body).value, nP = Math.round(n * +$("#bP", body).value / 100);
+    const n = +$("#bN", body).value, nP = isCt ? Math.round(n * +$("#bP", body).value / 100) : 0;
     const pool = active.filter(q => !$("#bUnused", body).checked || !usedElsewhere.has(q.id));
     const take = (cat, k) => {
       const bySub = [...groupBy(shuffle(pool.filter(q => q.category === cat)), q => q.subcategory || "?").values()];
       const out = []; while (out.length < k && bySub.some(g => g.length)) for (const g of shuffle(bySub)) { if (g.length && out.length < k) out.push(g.pop()); }
       return out;
     };
-    const picked = [...take("P", nP), ...take("R", n - nP)];
+    const takeAll = k => {
+      const bySub = [...groupBy(shuffle([...pool]), q => q.subcategory || "?").values()];
+      const out = []; while (out.length < k && bySub.some(g => g.length)) for (const g of shuffle(bySub)) { if (g.length && out.length < k) out.push(g.pop()); }
+      return out;
+    };
+    const picked = isCt ? [...take("P", nP), ...take("R", n - nP)] : takeAll(n);
     if (picked.length < n) toast(`Only ${picked.length} questions available with these settings.`, "warn");
     list = shuffle(picked).map(q => q.id); drawList();
   };
@@ -578,7 +592,7 @@ export async function showMockEdit(root, id, ctx) {
     e.preventDefault();
     if (!list.length) return toast("Add at least one question.", "error");
     const grps = $$('[name="grp"]:checked', f).map(x => x.value);
-    const row = { id: m.id, series_id: m.series_id, seq: m.seq, title: f.title.value.trim(), description: f.description.value.trim(), time_limit_sec: Math.round(+f.minutes.value * 60),
+    const row = { id: m.id, series_id: m.series_id, seq: m.seq, subject: subj, title: f.title.value.trim(), description: f.description.value.trim(), time_limit_sec: Math.round(+f.minutes.value * 60),
       question_ids: list, group_codes: f.everyone.checked || !grps.length ? null : grps, published: f.published.checked,
       show_review: f.show_review.checked, reserve_questions: f.reserve_questions.checked, max_attempts: +f.max_attempts.value || 1 };
     try { await api.saveMock(row); toast("Saved", "good"); ctx.go(`#/admin/mocks/${m.series_id ? "library" : "custom"}`); } catch (err) { toast(err.message, "error"); }
@@ -593,7 +607,8 @@ export async function showMockEdit(root, id, ctx) {
 
 export async function showQuestions(root, ctx) {
   const body = frame(root, "questions", ctx);
-  const { questions, qById } = await base(true);
+  const { questions: allQ, qById } = await base(true);
+  const questions = allQ.filter(inSubj(ctx));
   const { attempts, items } = await api.statsData("*");
   const keys = await api.answerKeys(null);
   const ds = deriveItems(attempts, items.map(i => ({ ...i, correct_answer: i.correct_answer || keys[i.question_id] })), qById);
@@ -621,11 +636,11 @@ export async function showQuestions(root, ctx) {
   }
   body.innerHTML = `<div class="toolbar">
       <select id="fx"><option value="">All papers</option>${exams.map(x => `<option>${esc(x)}</option>`).join("")}</select>
-      <select id="fc"><option value="">All types</option><option value="P">P — Problem Solving</option><option value="R">R — Critical Thinking</option>
+      <select id="fc"><option value="">All types</option>${ctx.taxonomy.filter(t => t.tier === "category" && subjOf(t) === ctx.subject).map(t => `<option value="${esc(t.code)}">${esc(t.code)} — ${esc(t.label)}</option>`).join("")}
         ${[...new Set(questions.map(q => q.subcategory).filter(Boolean))].sort().map(s => `<option value="${esc(s)}">${esc(L[s] || s)}</option>`).join("")}</select>
       <select id="fs"><option value="id">Sort by ID</option><option value="acc">Hardest first</option><option value="time">Slowest first</option><option value="doubt">Problems first</option></select>
       <span class="muted small" id="qn"></span></div>
-    <p class="muted small">Questions are added and edited in tsa-app, then uploaded with the importer. Only verified questions are uploaded.</p>
+    <p class="muted small">${ctx.subject === "math" ? "Math questions come from math.db and are uploaded with private/math/import_math.py." : "Questions are added and edited in tsa-app, then uploaded with the importer. Only verified questions are uploaded."}</p>
     <section class="card"><div class="scroll-x"><table class="tbl"><thead><tr><th>ID</th><th>Type</th><th>Skills</th><th>Key</th><th>Answered</th><th>Correct</th><th>Avg time</th><th>In mocks</th></tr></thead><tbody id="qb"></tbody></table></div></section>`;
   $("#fx", body).onchange = e => { fx = e.target.value; render(); };
   $("#fc", body).onchange = e => { fc = e.target.value; render(); };
@@ -651,7 +666,9 @@ export async function showCleanup(root, ctx) {
   const body = frame(root, "cleanup", ctx);
   const { profiles, qById } = await base(true);
   const pBy = Object.fromEntries(profiles.map(p => [p.id, p]));
-  const [{ attempts, items }, allAtt, reports] = await Promise.all([api.statsData("*"), api.allAttempts(), api.reports()]);
+  const [sd, allAttRaw, reportsRaw] = await Promise.all([api.statsData("*"), api.allAttempts(), api.reports()]);
+  const attempts = sd.attempts.filter(inSubj(ctx)), items = sd.items, allAtt = allAttRaw.filter(inSubj(ctx));
+  const reports = reportsRaw.filter(r => subjOf(qById[r.question_id]) === ctx.subject);
   const aBy = Object.fromEntries(attempts.map(a => [a.id, a]));
   const L = ctx.labels;
   let who = "", showHandled = false, showReports = "open";
