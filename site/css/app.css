@@ -373,3 +373,7 @@ h1 .subj-pill { font-family: var(--ui); font-weight: 700; }
   .subj-long { display: none; } .subj-short { display: inline; }
   .subj button { padding: 4px 10px; }
 }
+@media (max-width: 760px) {
+  .card, main, .view { min-width: 0; }
+  .tbl { display: block; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+}
